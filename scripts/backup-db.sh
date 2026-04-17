@@ -1,6 +1,10 @@
 #!/bin/bash
 set -euo pipefail
 
+# AUDIT-FIX F-Infra-06: Honour custom compose project name. If the stack was started
+# with `docker compose -p myproj ... up`, set COMPOSE_PROJECT_NAME=myproj before
+# invoking this script. Default = "cucthi" matches the on-disk project folder name.
+export COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-cucthi}"
 BACKUP_DIR="${BACKUP_DIR:-./backups}"
 RETENTION_DAYS="${RETENTION_DAYS:-30}"
 BACKUP_ENCRYPTION_KEY="${BACKUP_ENCRYPTION_KEY:-}"
@@ -10,7 +14,7 @@ BACKUP_FILE="${BACKUP_DIR}/db_backup_${TIMESTAMP}.sql.gz"
 
 mkdir -p "$BACKUP_DIR"
 
-echo "[$(date)] Starting database backup..."
+echo "[$(date)] Starting database backup (project=${COMPOSE_PROJECT_NAME})..."
 
 docker compose -f docker-compose.prod.yml exec -T postgres \
   pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" --no-owner --no-acl --clean | gzip > "$BACKUP_FILE"

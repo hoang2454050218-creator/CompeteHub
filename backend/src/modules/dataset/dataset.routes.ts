@@ -3,10 +3,11 @@ import multer from 'multer';
 import os from 'os';
 import { DatasetController } from './dataset.controller';
 import { authenticate, authorize, requireEnrolled } from '../../middleware/auth';
-import { validateUUID } from '../../middleware/validate';
+import { validate, validateUUID } from '../../middleware/validate';
 import { sanitizeFilename, validateDatasetMagicBytes } from '../../utils/fileHelpers';
 import { AppError } from '../../utils/apiResponse';
 import { Request, Response, NextFunction } from 'express';
+import { uploadDatasetSchema } from './dataset.validator';
 
 const router = Router({ mergeParams: true });
 const controller = new DatasetController();
@@ -50,7 +51,7 @@ function validateMagicBytes(req: Request, _res: Response, next: NextFunction) {
   next();
 }
 
-router.post('/:id/datasets', authenticate, authorize('HOST', 'ADMIN'), validateUUID('id'), upload.single('file'), validateMagicBytes, controller.upload);
+router.post('/:id/datasets', authenticate, authorize('HOST', 'ADMIN'), validateUUID('id'), upload.single('file'), validateMagicBytes, validate(uploadDatasetSchema), controller.upload);
 router.get('/:id/datasets', validateUUID('id'), controller.list);
 router.get('/:id/datasets/:datasetId/download', authenticate, requireEnrolled, validateUUID('id', 'datasetId'), controller.download);
 router.get('/:id/datasets/:datasetId/preview', authenticate, requireEnrolled, validateUUID('id', 'datasetId'), controller.preview);

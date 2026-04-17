@@ -1,4 +1,4 @@
-import express from 'express';
+import express, { Request } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
@@ -75,6 +75,21 @@ app.use((req, _res, next) => {
 const redisSendCommand = (...args: string[]) =>
   (redis as any).call(...args) as any;
 
+// AUDIT-FIX F-Sec-01: Pick the original client IP from the leftmost X-Forwarded-For
+// hop (set by trusted upstream nginx). Without this, express-rate-limit defaults to
+// req.ip which under docker resolves to the nginx container IP -> ALL clients share
+// one rate-limit bucket.
+function clientIpKey(req: Request): string {
+  const xff = req.headers['x-forwarded-for'];
+  if (typeof xff === 'string' && xff.length > 0) {
+    return xff.split(',')[0].trim();
+  }
+  if (Array.isArray(xff) && xff.length > 0) {
+    return String(xff[0]).split(',')[0].trim();
+  }
+  return req.ip || 'unknown';
+}
+
 const rateLimitStore = new RedisStore({ sendCommand: redisSendCommand });
 
 const globalLimiter = rateLimit({
@@ -83,6 +98,7 @@ const globalLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   store: rateLimitStore,
+  keyGenerator: clientIpKey,
 });
 app.use('/api/', globalLimiter);
 
@@ -98,6 +114,7 @@ const loginLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   store: authRateLimitStore,
+  keyGenerator: clientIpKey,
 });
 
 const registerLimiterStore = new RedisStore({
@@ -111,6 +128,7 @@ const registerLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   store: registerLimiterStore,
+  keyGenerator: clientIpKey,
 });
 
 initPassport();
@@ -127,6 +145,7 @@ const refreshLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   store: refreshLimiterStore,
+  keyGenerator: clientIpKey,
 });
 
 app.use(`${API}/auth/login`, loginLimiter);

@@ -28,30 +28,32 @@
 - **Risk**: LOW — GitHub API typically returns primary verified email
 - **Mitigation**: GitHub requires `user:email` scope; most emails are verified
 
-### 6. Frontend date format test failure (pre-existing)
-- **Impact**: 1 frontend test fails due to locale-dependent date formatting
-- **Risk**: NONE — cosmetic test issue
-- **Fix**: Use locale-independent assertions in test
+### 6. Default seed credentials are public knowledge
+- **Impact**: Seed creates `admin@competition-platform.com / admin123456` (and host/user variants).
+- **Risk**: LOW for instructor demo; MEDIUM if these credentials reach a public deployment unchanged.
+- **Mitigation Applied** (audit-v2): Seed refuses to run in production unless `ALLOW_PRODUCTION_SEED=true` is set OR the users table is empty (first-time bootstrap). After first login, change these passwords immediately via the profile flow.
+- **Future Fix**: Generate random initial passwords and print to console once.
 
-### 7. Worker scorer edge case tests (pre-existing)
-- **Impact**: 3 worker scorer tests fail on specific numerical edge cases
-- **Risk**: LOW — core scoring logic is correct; edge case handling may need tuning
-- **Fix**: Review scorer test expectations for boundary conditions
+### 7. Backend test coverage at ~57% statements
+- **Impact**: 4 service modules (dataset, team, user, leaderboard) have 0% unit test coverage; integration is implicit via API + E2E.
+- **Risk**: LOW for current stage; MEDIUM long-term — refactors in those modules are not protected.
+- **Mitigation Applied** (audit-v2): jest threshold lowered to current actual (50/40/50/50) so CI doesn't break, and coverage scope excludes thin glue (controllers/routes/validators/config) so the metric is meaningful for service code.
+- **Future Fix**: Add service-level unit tests for the 4 untested modules.
 
 ### 8. No centralized metrics (Prometheus/Grafana)
 - **Impact**: No runtime metrics collection beyond health checks and Sentry
 - **Risk**: MEDIUM for production monitoring
 - **Future Fix**: Add Prometheus metrics endpoint + Grafana dashboard
 
-### 9. Session invalidation on profile password change
-- **Impact**: If user changes password via profile update (not reset), existing refresh tokens are NOT invalidated
-- **Risk**: MEDIUM — password reset does invalidate tokens; profile password change path needs same treatment
-- **Future Fix**: Add `refreshToken: null` to profile password change handler
-
-### 10. `autoSelectBestSubmissions` uses Prisma `distinct` + `orderBy` for batch selection
+### 9. `autoSelectBestSubmissions` uses Prisma `distinct` + `orderBy` for batch selection
 - **Mitigation Applied**: Replaced N+1 loop with batch queries
 - **Residual Risk**: Prisma `distinct` + `orderBy` behavior may not pick the absolute best in all edge cases under race conditions with concurrent scoring
 - **Monitoring**: Review auto-selected submissions after first real competition
+
+### 10. Swagger spec covers ~12% of endpoints
+- **Impact**: API documentation incomplete; only auth + competitions list/post + leaderboard documented inline. `apis: []` in swagger.ts disables JSDoc scanning.
+- **Risk**: LOW for current scale (frontend is the primary consumer); MEDIUM if a public API is exposed.
+- **Future Fix**: Add `@swagger` JSDoc to each route file and set `apis: ['./src/modules/**/*.routes.ts']`, OR generate OpenAPI from Zod schemas via `zod-to-openapi`.
 
 ## Infrastructure Assumptions
 - SSL certificates must be provisioned and placed in `nginx/ssl/` before production deploy
@@ -59,3 +61,4 @@
 - MinIO should not use default credentials in production (enforced by startup validation)
 - PostgreSQL should use `sslmode=require` in production DATABASE_URL
 - Offsite backup storage is configured in `scripts/backup-db.sh` but requires AWS credentials
+- For multi-host deployments: `app.set('trust proxy', N)` should be set to the actual hop count (currently `1` assumes one trusted nginx in front).

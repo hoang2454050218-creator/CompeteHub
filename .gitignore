@@ -23,13 +23,22 @@ coverage/
 backups/
 nginx/ssl/
 
-# Audit-only (added by pre-handoff audit 2026-04-17)
+# Audit-only artifacts (any variant: audit, audit-v2, future)
 audit-artifacts/
+audit-artifacts-v2/
 .env.audit
+.env.audit-v2
+.env.audit-*
 docker-compose.audit.yml
+docker-compose.audit-v2.yml
+docker-compose.audit-*.yml
+nginx/nginx-audit.conf
+nginx/nginx-audit-*.conf
 backend/Dockerfile.audit
 frontend/Dockerfile.audit
 nginx/ssl.bak-pre-audit/
+
+# Secrets / cert material — never commit
 *.pem
 *.key
 .env.production

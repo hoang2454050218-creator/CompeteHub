@@ -32,6 +32,9 @@ export class EnrollmentService {
     });
     if (!enrollment) throw new AppError('Not enrolled', 404);
 
+    // AUDIT-FIX L-01: Wrap in Serializable transaction so two concurrent unenrolls
+    // of the last 2 team members can't both decide "not last" -> orphan team row,
+    // and so leader-handoff sees a consistent member set.
     await prisma.$transaction(async (tx) => {
       if (enrollment.teamId && enrollment.team) {
         const memberCount = await tx.enrollment.count({ where: { teamId: enrollment.teamId } });
@@ -52,7 +55,7 @@ export class EnrollmentService {
       await tx.enrollment.delete({
         where: { userId_competitionId: { userId, competitionId } },
       });
-    });
+    }, { isolationLevel: 'Serializable' });
   }
 
   async isEnrolled(userId: string, competitionId: string) {

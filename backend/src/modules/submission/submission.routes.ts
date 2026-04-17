@@ -3,8 +3,9 @@ import multer from 'multer';
 import os from 'os';
 import { SubmissionController } from './submission.controller';
 import { authenticate, requireEnrolled } from '../../middleware/auth';
-import { validateUUID } from '../../middleware/validate';
+import { validate, validateUUID } from '../../middleware/validate';
 import { sanitizeFilename } from '../../utils/fileHelpers';
+import { submitSubmissionSchema } from './submission.validator';
 
 const router = Router({ mergeParams: true });
 const controller = new SubmissionController();
@@ -24,7 +25,7 @@ const upload = multer({
   },
 });
 
-router.post('/:id/submissions', authenticate, requireEnrolled, validateUUID('id'), upload.single('file'), controller.submit);
+router.post('/:id/submissions', authenticate, requireEnrolled, validateUUID('id'), upload.single('file'), validate(submitSubmissionSchema), controller.submit);
 router.get('/:id/submissions', authenticate, requireEnrolled, validateUUID('id'), controller.listMy);
 router.patch('/:id/submissions/:submissionId/select', authenticate, validateUUID('id', 'submissionId'), controller.select);
 

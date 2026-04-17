@@ -4,9 +4,21 @@ import bcrypt from 'bcryptjs';
 const prisma = new PrismaClient();
 
 async function main() {
-  if (process.env.NODE_ENV === 'production') {
-    console.error('Seed script must not run in production environment');
-    process.exit(1);
+  // AUDIT-FIX F-Infra-05: In production, allow seeding ONLY when the users table
+  // is empty (first-time bootstrap) OR when ALLOW_PRODUCTION_SEED=true is set
+  // explicitly. This unblocks the documented handoff step
+  // `docker compose ... exec backend npx prisma db seed` while still preventing
+  // accidental re-seed of a populated production DB.
+  if (process.env.NODE_ENV === 'production' && process.env.ALLOW_PRODUCTION_SEED !== 'true') {
+    const userCount = await prisma.user.count();
+    if (userCount > 0) {
+      console.error(
+        `Refusing to seed: ${userCount} users already exist in production DB. ` +
+        `Set ALLOW_PRODUCTION_SEED=true to override.`
+      );
+      process.exit(1);
+    }
+    console.warn('Empty production DB detected — proceeding with first-time seed.');
   }
 
   const passwordHash = await bcrypt.hash('admin123456', 12);

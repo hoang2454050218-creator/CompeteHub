@@ -15,6 +15,12 @@ services:
       timeout: 5s
       retries: 5
     restart: unless-stopped
+    # AUDIT-FIX F-Infra-02: bound disk usage by docker logs
+    logging:
+      driver: json-file
+      options:
+        max-size: "100m"
+        max-file: "5"
     networks:
       - data
     deploy:
@@ -33,6 +39,12 @@ services:
       timeout: 5s
       retries: 5
     restart: unless-stopped
+    # AUDIT-FIX F-Infra-02
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
     networks:
       - data
     deploy:
@@ -54,8 +66,19 @@ services:
       timeout: 5s
       retries: 5
     restart: unless-stopped
+    # AUDIT-FIX F-Infra-02
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
     networks:
       - data
+    # AUDIT-FIX F-Infra-01: cap MinIO memory so a runaway upload cannot OOM the host
+    deploy:
+      resources:
+        limits:
+          memory: 1G
 
   backend:
     build:

@@ -31,6 +31,7 @@
 | `EMAIL_FROM` | NO | Default: `noreply@competition-platform.com` |
 | `SENTRY_DSN` | NO | Sentry error tracking |
 | `NODE_ENV` | YES | Must be `production` |
+| `ALLOW_PRODUCTION_SEED` | NO | Set to `true` to allow `prisma db seed` on a populated production DB. By default seed allows itself only when users table is empty. |
 
 ### Frontend (build-time)
 | Variable | Required | Notes |
@@ -53,7 +54,7 @@ Same database, Redis, and MinIO variables as backend.
 
 2. **Create production .env** from `.env.example`:
    ```bash
-   cp .env.example .env
+   cp -n .env.example .env  # -n to avoid overwriting existing
    # Edit with production values
    ```
 
@@ -73,10 +74,16 @@ Same database, Redis, and MinIO variables as backend.
    docker compose -f docker-compose.prod.yml exec backend npx prisma migrate deploy
    ```
 
-6. **Seed admin user**:
+6. **Seed admin/host/participant accounts**:
    ```bash
    docker compose -f docker-compose.prod.yml exec backend npx prisma db seed
    ```
+   The seed will run automatically because the users table is empty on first deploy.
+   On a populated DB it will refuse unless `ALLOW_PRODUCTION_SEED=true` is set.
+   Default credentials (CHANGE IMMEDIATELY after first login):
+   - `admin@competition-platform.com / admin123456`
+   - `host@competition-platform.com / host123456`
+   - `user@competition-platform.com / user123456`
 
 7. **Start all services**:
    ```bash
@@ -85,9 +92,10 @@ Same database, Redis, and MinIO variables as backend.
 
 ## Seed / Test Data
 
-- `backend/prisma/seed.ts` creates an admin user
-- Seed is run via `npx prisma db seed`
-- Admin credentials are set in the seed script — change immediately after first login
+- `backend/prisma/seed.ts` creates an admin user, a demo host, a demo participant, and a Titanic Survival Prediction competition.
+- Seed is run via `npx prisma db seed`.
+- Re-run after fresh deploys; refuses to overwrite an already-populated production DB unless `ALLOW_PRODUCTION_SEED=true` is set.
+- Admin credentials are documented above — change immediately after first login.
 
 ## Deploy Commands
 
@@ -106,14 +114,15 @@ docker compose -f docker-compose.prod.yml logs -f backend
 docker compose -f docker-compose.prod.yml logs -f worker
 
 # Manual backup
-docker compose -f docker-compose.prod.yml exec -T postgres pg_dump -U $POSTGRES_USER $POSTGRES_DB | gzip > backup_$(date +%Y%m%d).sql.gz
+./scripts/backup-db.sh
+# (set COMPOSE_PROJECT_NAME if you started the stack with docker compose -p <name>)
 ```
 
 ## Rollback Notes
 
 1. **Database rollback**: Restore from latest backup in `./backups/`
    ```bash
-   gunzip < backups/backup_YYYYMMDD_HHMMSS.sql.gz | docker compose -f docker-compose.prod.yml exec -T postgres psql -U $POSTGRES_USER $POSTGRES_DB
+   gunzip < backups/db_backup_YYYYMMDD_HHMMSS.sql.gz | docker compose -f docker-compose.prod.yml exec -T postgres psql -U $POSTGRES_USER $POSTGRES_DB
    ```
 
 2. **Application rollback**: Rebuild with previous git commit
@@ -147,3 +156,4 @@ docker compose -f docker-compose.prod.yml exec -T postgres pg_dump -U $POSTGRES_
 - [ ] Verify backup was created in `./backups/`
 - [ ] Check Sentry for any startup errors
 - [ ] Verify HTTPS redirect works: `curl -I http://yourdomain.com`
+- [ ] Confirm rate-limit per-IP: 6 different X-Forwarded-For values should each get their own bucket (no shared 429).
