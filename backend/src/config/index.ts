@@ -48,6 +48,7 @@ export const config = {
     secretKey: requireEnv('MINIO_SECRET_KEY', isProd ? undefined : 'minioadmin'),
     bucket: process.env.MINIO_BUCKET || 'competition-platform',
     useSSL: process.env.MINIO_USE_SSL === 'true',
+    region: process.env.MINIO_REGION || 'us-east-1',
   },
 
   smtp: {

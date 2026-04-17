@@ -14,6 +14,7 @@ const minio = new Minio.Client({
   useSSL: process.env.MINIO_USE_SSL === 'true',
   accessKey: process.env.MINIO_ACCESS_KEY || 'minioadmin',
   secretKey: process.env.MINIO_SECRET_KEY || 'minioadmin',
+  region: process.env.MINIO_REGION || 'us-east-1',
 });
 
 const redis = new Redis(process.env.REDIS_URL || 'redis://localhost:6379');

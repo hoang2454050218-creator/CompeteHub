@@ -8,6 +8,7 @@ export const minioClient = new Minio.Client({
   useSSL: config.minio.useSSL,
   accessKey: config.minio.accessKey,
   secretKey: config.minio.secretKey,
+  region: config.minio.region,
 });
 
 export async function ensureBucket(retries = 5, delay = 2000) {
