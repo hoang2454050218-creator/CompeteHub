@@ -1,0 +1,26 @@
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci
+COPY prisma ./prisma
+RUN npx prisma generate
+COPY . .
+RUN npm run build
+
+FROM node:20-alpine
+
+RUN addgroup --system --gid 1001 appgroup && \
+    adduser --system --uid 1001 --ingroup appgroup appuser
+
+WORKDIR /app
+COPY --from=builder --chown=appuser:appgroup /app/dist ./dist
+COPY --from=builder --chown=appuser:appgroup /app/node_modules ./node_modules
+COPY --from=builder --chown=appuser:appgroup /app/prisma ./prisma
+COPY --chown=appuser:appgroup package*.json ./
+RUN npm prune --production
+
+USER appuser
+EXPOSE 3000
+
+CMD ["sh", "-c", "npx prisma migrate deploy && node dist/app.js"]

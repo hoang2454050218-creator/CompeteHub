@@ -1,0 +1,343 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  HOST
+  PARTICIPANT
+}
+
+enum CompetitionStatus {
+  DRAFT
+  PENDING_REVIEW
+  ACTIVE
+  COMPLETED
+  ARCHIVED
+}
+
+enum EvalMetric {
+  ACCURACY
+  RMSE
+  F1_SCORE
+  AUC_ROC
+  LOG_LOSS
+  CUSTOM
+}
+
+enum CompetitionCategory {
+  FEATURED
+  GETTING_STARTED
+  RESEARCH
+  COMMUNITY
+}
+
+enum SubmissionStatus {
+  QUEUED
+  SCORING
+  SCORED
+  FAILED
+}
+
+enum VoteableType {
+  DISCUSSION
+  REPLY
+}
+
+enum NotificationType {
+  SUBMISSION_SCORED
+  TEAM_INVITE
+  TEAM_INVITE_ACCEPTED
+  TEAM_INVITE_REJECTED
+  COMPETITION_STATUS_CHANGED
+  COMPETITION_APPROVED
+  COMPETITION_REJECTED
+  NEW_DISCUSSION
+  NEW_REPLY
+  SYSTEM
+}
+
+enum TeamInvitationStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
+model User {
+  id            String   @id @default(uuid())
+  email         String   @unique
+  passwordHash  String?  @map("password_hash")
+  name          String
+  avatarUrl     String?  @map("avatar_url")
+  bio           String?
+  githubId      String?  @unique @map("github_id")
+  googleId      String?  @unique @map("google_id")
+  githubUrl     String?  @map("github_url")
+  linkedinUrl   String?  @map("linkedin_url")
+  role          Role     @default(PARTICIPANT)
+  isActive      Boolean  @default(true) @map("is_active")
+  failedLogins  Int      @default(0) @map("failed_logins")
+  lockedUntil   DateTime? @map("locked_until")
+  resetToken    String?  @map("reset_token")
+  resetTokenExp DateTime? @map("reset_token_exp")
+  refreshToken  String?  @map("refresh_token")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  competitions      Competition[]
+  enrollments       Enrollment[]
+  submissions       Submission[]
+  discussions       Discussion[]
+  discussionReplies DiscussionReply[]
+  votes             Vote[]
+  notifications     Notification[]
+  ledTeams          Team[]            @relation("TeamLeader")
+  sentInvitations   TeamInvitation[]  @relation("InvitationSender")
+  receivedInvitations TeamInvitation[] @relation("InvitationReceiver")
+  leaderboardEntries LeaderboardEntry[]
+
+  @@map("users")
+}
+
+model Competition {
+  id              String              @id @default(uuid())
+  hostId          String              @map("host_id")
+  title           String
+  slug            String              @unique
+  description     String?
+  rules           String?
+  coverImage      String?             @map("cover_image")
+  status          CompetitionStatus   @default(DRAFT)
+  category        CompetitionCategory @default(COMMUNITY)
+  tags            String[]            @default([])
+  prize           String?
+  startDate       DateTime?           @map("start_date")
+  endDate         DateTime?           @map("end_date")
+  evalMetric      EvalMetric          @default(ACCURACY) @map("eval_metric")
+  customScript    String?             @map("custom_script")
+  pubPrivSplit    Float               @default(0.3) @map("pub_priv_split")
+  maxTeamSize     Int                 @default(1) @map("max_team_size")
+  maxDailySubs    Int                 @default(5) @map("max_daily_subs")
+  maxTotalSubs    Int?                @map("max_total_subs")
+  maxFileSize     Int                 @default(104857600) @map("max_file_size")
+  mergeDeadline   DateTime?           @map("merge_deadline")
+  sampleFileUrl   String?             @map("sample_file_url")
+  groundTruthUrl  String?             @map("ground_truth_url")
+  createdAt       DateTime            @default(now()) @map("created_at")
+  updatedAt       DateTime            @updatedAt @map("updated_at")
+
+  host            User                @relation(fields: [hostId], references: [id], onDelete: Cascade)
+  datasets        Dataset[]
+  enrollments     Enrollment[]
+  submissions     Submission[]
+  discussions     Discussion[]
+  teams           Team[]
+  leaderboardEntries LeaderboardEntry[]
+
+  @@index([status, startDate])
+  @@index([hostId])
+  @@index([category, status])
+  @@map("competitions")
+}
+
+model Dataset {
+  id              String   @id @default(uuid())
+  competitionId   String   @map("competition_id")
+  version         Int      @default(1)
+  title           String
+  description     String?
+  fileUrl         String   @map("file_url")
+  fileName        String   @map("file_name")
+  fileSize        BigInt   @map("file_size")
+  isPublic        Boolean  @default(false) @map("is_public")
+  downloadCount   Int      @default(0) @map("download_count")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  competition     Competition @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+
+  @@unique([competitionId, version])
+  @@map("datasets")
+}
+
+model Enrollment {
+  id              String   @id @default(uuid())
+  userId          String   @map("user_id")
+  competitionId   String   @map("competition_id")
+  teamId          String?  @map("team_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  user            User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  competition     Competition @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+  team            Team?       @relation(fields: [teamId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, competitionId])
+  @@index([teamId])
+  @@map("enrollments")
+}
+
+model Team {
+  id              String   @id @default(uuid())
+  competitionId   String   @map("competition_id")
+  leaderId        String   @map("leader_id")
+  name            String
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  competition     Competition      @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+  leader          User             @relation("TeamLeader", fields: [leaderId], references: [id])
+  members         Enrollment[]
+  invitations     TeamInvitation[]
+  submissions     Submission[]
+  leaderboardEntries LeaderboardEntry[]
+
+  @@unique([competitionId, name])
+  @@index([leaderId])
+  @@map("teams")
+}
+
+model TeamInvitation {
+  id          String               @id @default(uuid())
+  teamId      String               @map("team_id")
+  senderId    String               @map("sender_id")
+  receiverId  String               @map("receiver_id")
+  status      TeamInvitationStatus @default(PENDING)
+  createdAt   DateTime             @default(now()) @map("created_at")
+  updatedAt   DateTime             @updatedAt @map("updated_at")
+
+  team        Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  sender      User @relation("InvitationSender", fields: [senderId], references: [id])
+  receiver    User @relation("InvitationReceiver", fields: [receiverId], references: [id])
+
+  @@unique([teamId, receiverId])
+  @@index([receiverId, status])
+  @@index([senderId])
+  @@map("team_invitations")
+}
+
+model Submission {
+  id            String           @id @default(uuid())
+  userId        String           @map("user_id")
+  competitionId String           @map("competition_id")
+  teamId        String?          @map("team_id")
+  fileUrl       String           @map("file_url")
+  fileName      String           @map("file_name")
+  fileHash      String?          @map("file_hash")
+  description   String?
+  status        SubmissionStatus @default(QUEUED)
+  publicScore   Float?           @map("public_score")
+  privateScore  Float?           @map("private_score")
+  errorMessage  String?          @map("error_message")
+  isSelected    Boolean          @default(false) @map("is_selected")
+  scoredAt      DateTime?        @map("scored_at")
+  createdAt     DateTime         @default(now()) @map("created_at")
+
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  competition   Competition @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+  team          Team?       @relation(fields: [teamId], references: [id], onDelete: SetNull)
+
+  @@index([competitionId, userId])
+  @@index([competitionId, createdAt])
+  @@index([status])
+  @@unique([userId, competitionId, fileHash], name: "unique_user_comp_hash")
+  @@map("submissions")
+}
+
+model LeaderboardEntry {
+  id               String   @id @default(uuid())
+  competitionId    String   @map("competition_id")
+  userId           String   @map("user_id")
+  teamId           String?  @map("team_id")
+  bestPublicScore  Float?   @map("best_public_score")
+  bestPrivateScore Float?   @map("best_private_score")
+  submissionCount  Int      @default(0) @map("submission_count")
+  lastSubmittedAt  DateTime? @map("last_submitted_at")
+  publicRank       Int?     @map("public_rank")
+  privateRank      Int?     @map("private_rank")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  competition      Competition @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+  user             User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  team             Team?       @relation(fields: [teamId], references: [id], onDelete: SetNull)
+
+  @@unique([competitionId, userId])
+  @@index([competitionId, publicRank])
+  @@index([competitionId, privateRank])
+  @@map("leaderboard_entries")
+}
+
+model Discussion {
+  id              String   @id @default(uuid())
+  competitionId   String   @map("competition_id")
+  authorId        String   @map("author_id")
+  title           String
+  content         String
+  isPinned        Boolean  @default(false) @map("is_pinned")
+  upvoteCount     Int      @default(0) @map("upvote_count")
+  replyCount      Int      @default(0) @map("reply_count")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  competition     Competition      @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+  author          User             @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  replies         DiscussionReply[]
+
+  @@index([competitionId, createdAt])
+  @@map("discussions")
+}
+
+model DiscussionReply {
+  id              String   @id @default(uuid())
+  discussionId    String   @map("discussion_id")
+  authorId        String   @map("author_id")
+  parentReplyId   String?  @map("parent_reply_id")
+  content         String
+  upvoteCount     Int      @default(0) @map("upvote_count")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  discussion      Discussion       @relation(fields: [discussionId], references: [id], onDelete: Cascade)
+  author          User             @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  parentReply     DiscussionReply? @relation("ReplyToReply", fields: [parentReplyId], references: [id], onDelete: Cascade)
+  childReplies    DiscussionReply[] @relation("ReplyToReply")
+
+  @@index([discussionId, createdAt])
+  @@map("discussion_replies")
+}
+
+model Vote {
+  id            String       @id @default(uuid())
+  userId        String       @map("user_id")
+  voteableType  VoteableType @map("voteable_type")
+  voteableId    String       @map("voteable_id")
+  value         Int          // +1 or -1
+  createdAt     DateTime     @default(now()) @map("created_at")
+
+  user          User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, voteableType, voteableId])
+  @@index([voteableType, voteableId])
+  @@map("votes")
+}
+
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String           @map("user_id")
+  type      NotificationType
+  title     String
+  message   String
+  isRead    Boolean          @default(false) @map("is_read")
+  refType   String?          @map("ref_type")
+  refId     String?          @map("ref_id")
+  createdAt DateTime         @default(now()) @map("created_at")
+
+  user      User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+  @@index([userId, createdAt])
+  @@map("notifications")
+}
