@@ -23,4 +23,4 @@ RUN npm prune --production
 USER appuser
 EXPOSE 3000
 
-CMD ["sh", "-c", "npx prisma migrate deploy && node dist/app.js"]
+CMD ["sh", "-c", "npx prisma db execute --file prisma/init.sql --schema prisma/schema.prisma && npx prisma migrate deploy && node dist/app.js"]
