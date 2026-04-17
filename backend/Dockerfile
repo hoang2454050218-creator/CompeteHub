@@ -9,7 +9,8 @@ COPY prisma ./prisma
 RUN npx prisma generate
 
 COPY . .
+RUN npm run build
 
 EXPOSE 3000
 
-CMD ["npm", "run", "dev"]
+CMD ["sh", "-c", "npx prisma db execute --file prisma/init.sql --schema prisma/schema.prisma && npx prisma migrate deploy && node dist/app.js"]
