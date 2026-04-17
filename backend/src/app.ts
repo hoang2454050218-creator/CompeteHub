@@ -34,6 +34,7 @@ import notificationRoutes from './modules/notification/notification.routes';
 import userRoutes from './modules/user/user.routes';
 import { recoverStuckSubmissions, autoCompleteCompetitions, cleanupOldNotifications } from './jobs/scheduledJobs';
 import adminRoutes from './modules/admin/admin.routes';
+import { startInlineWorker, stopInlineWorker } from './worker';
 
 initSentry();
 
@@ -225,6 +226,10 @@ async function start() {
   cron.schedule('0 3 * * *', cleanupOldNotifications);
   recoverStuckSubmissions().catch((err) => logger.error({ err }, 'Startup recovery failed'));
 
+  if (process.env.WORKER_INLINE === 'true') {
+    startInlineWorker();
+  }
+
   httpServer.listen(config.port, () => {
     logger.info({ port: config.port }, `Server running on port ${config.port}`);
   });
@@ -252,6 +257,8 @@ async function shutdown(signal: string) {
     io.close();
     logger.info('Socket.IO closed');
   } catch { /* not initialized */ }
+
+  await stopInlineWorker();
 
   try {
     await redis.quit();
