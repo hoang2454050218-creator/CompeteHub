@@ -1,4 +1,4 @@
-import { Component, type ErrorInfo, type ReactNode } from 'react';
+﻿import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
 import * as Sentry from '@sentry/react';
 
@@ -36,10 +36,10 @@ export default class ErrorBoundary extends Component<Props, State> {
               <AlertTriangle className="h-8 w-8 text-red-600 dark:text-red-400" />
             </div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-              Something went wrong
+              Đã xảy ra sự cố
             </h1>
             <p className="text-gray-500 dark:text-gray-400 mb-6">
-              An unexpected error occurred. Please try refreshing the page.
+              Hệ thống gặp lỗi ngoài dự kiến. Vui lòng thử tải lại trang.
             </p>
             <div className="flex items-center justify-center gap-3">
               <button
@@ -47,10 +47,10 @@ export default class ErrorBoundary extends Component<Props, State> {
                 className="btn-primary inline-flex items-center gap-2"
               >
                 <RefreshCw className="h-4 w-4" />
-                Try Again
+                Thử lại
               </button>
               <a href="/" className="btn-secondary">
-                Go Home
+                Về trang chủ
               </a>
             </div>
           </div>
@@ -82,9 +82,9 @@ export class SectionErrorBoundary extends Component<Props, State> {
       return (
         <div className="card p-8 text-center">
           <AlertTriangle className="h-8 w-8 mx-auto text-red-400 mb-3" />
-          <p className="text-gray-600 dark:text-gray-400 mb-4">This section encountered an error.</p>
+          <p className="text-gray-600 dark:text-gray-400 mb-4">Khu vực này đang gặp lỗi.</p>
           <button onClick={this.handleReset} className="btn-secondary text-sm inline-flex items-center gap-1">
-            <RefreshCw className="h-3 w-3" /> Retry
+            <RefreshCw className="h-3 w-3" /> Thử lại
           </button>
         </div>
       );

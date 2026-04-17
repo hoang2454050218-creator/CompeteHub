@@ -48,9 +48,9 @@ export class AdminService {
 
   async reviewCompetition(competitionId: string, action: 'approve' | 'reject') {
     const competition = await prisma.competition.findUnique({ where: { id: competitionId } });
-    if (!competition) throw new AppError('Competition not found', 404);
+    if (!competition) throw new AppError('Không tìm thấy cuộc thi', 404);
     if (competition.status !== 'PENDING_REVIEW') {
-      throw new AppError('Competition is not pending review', 400);
+      throw new AppError('Cuộc thi này không ở trạng thái chờ duyệt', 400);
     }
 
     const newStatus: CompetitionStatus = action === 'approve' ? 'ACTIVE' : 'DRAFT';

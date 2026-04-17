@@ -1,4 +1,4 @@
-import { cn, formatDate, formatDateTime, timeAgo, formatFileSize } from './cn';
+﻿import { cn, formatDate, formatDateTime, timeAgo, formatFileSize } from './cn';
 
 describe('cn (class name merge)', () => {
   it('merges class names', () => {
@@ -25,7 +25,6 @@ describe('cn (class name merge)', () => {
 describe('formatDate', () => {
   it('formats ISO date string locale-independently', () => {
     const result = formatDate('2024-06-15T10:30:00Z');
-    // AUDIT-FIX L-03: locale-independent assertion (was 'Jun' which fails on vi-VN)
     expect(result).toContain('2024');
     expect(result).toContain('15');
     expect(result.length).toBeGreaterThan(0);
@@ -40,29 +39,29 @@ describe('formatDateTime', () => {
 });
 
 describe('timeAgo', () => {
-  it('returns "just now" for recent times', () => {
+  it('returns "Vừa xong" for recent times', () => {
     const now = new Date().toISOString();
-    expect(timeAgo(now)).toBe('just now');
+    expect(timeAgo(now)).toBe('Vừa xong');
   });
 
   it('returns minutes ago', () => {
     const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
-    expect(timeAgo(fiveMinAgo)).toBe('5 minutes ago');
+    expect(timeAgo(fiveMinAgo)).toBe('5 phút trước');
   });
 
   it('returns hours ago', () => {
     const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
-    expect(timeAgo(twoHoursAgo)).toBe('2 hours ago');
+    expect(timeAgo(twoHoursAgo)).toBe('2 giờ trước');
   });
 
   it('returns days ago', () => {
     const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
-    expect(timeAgo(threeDaysAgo)).toBe('3 days ago');
+    expect(timeAgo(threeDaysAgo)).toBe('3 ngày trước');
   });
 
-  it('handles singular form', () => {
+  it('handles single hour form', () => {
     const oneHourAgo = new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString();
-    expect(timeAgo(oneHourAgo)).toBe('1 hour ago');
+    expect(timeAgo(oneHourAgo)).toBe('1 giờ trước');
   });
 });
 

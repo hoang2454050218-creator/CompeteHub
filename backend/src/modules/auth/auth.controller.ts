@@ -30,7 +30,7 @@ export class AuthController {
   async register(req: Request, res: Response, next: NextFunction) {
     try {
       const user = await authService.register(req.body);
-      sendSuccess(res, user, 'Registration successful', 201);
+      sendSuccess(res, user, 'Đăng ký thành công', 201);
     } catch (error) {
       next(error);
     }
@@ -40,7 +40,7 @@ export class AuthController {
     try {
       const result = await authService.login(req.body);
       res.cookie('refreshToken', result.refreshToken, COOKIE_OPTIONS);
-      sendSuccess(res, { user: result.user, accessToken: result.accessToken }, 'Login successful');
+      sendSuccess(res, { user: result.user, accessToken: result.accessToken }, 'Đăng nhập thành công');
     } catch (error) {
       next(error);
     }
@@ -50,11 +50,11 @@ export class AuthController {
     try {
       const token = req.cookies?.refreshToken;
       if (!token) {
-        throw new AppError('No refresh token provided', 401, 'NO_REFRESH_TOKEN');
+        throw new AppError('Không có refresh token', 401, 'NO_REFRESH_TOKEN');
       }
       const result = await authService.refreshToken(token);
       res.cookie('refreshToken', result.refreshToken, COOKIE_OPTIONS);
-      sendSuccess(res, { accessToken: result.accessToken }, 'Token refreshed');
+      sendSuccess(res, { accessToken: result.accessToken }, 'Làm mới phiên đăng nhập thành công');
     } catch (error) {
       next(error);
     }
@@ -63,7 +63,7 @@ export class AuthController {
   async forgotPassword(req: Request, res: Response, next: NextFunction) {
     try {
       await authService.forgotPassword(req.body.email);
-      sendSuccess(res, null, 'If that email exists, a reset link has been sent');
+      sendSuccess(res, null, 'Nếu email tồn tại, liên kết đặt lại mật khẩu đã được gửi');
     } catch (error) {
       next(error);
     }
@@ -72,7 +72,7 @@ export class AuthController {
   async resetPassword(req: Request, res: Response, next: NextFunction) {
     try {
       await authService.resetPassword(req.body.token, req.body.password);
-      sendSuccess(res, null, 'Password reset successful');
+      sendSuccess(res, null, 'Đặt lại mật khẩu thành công');
     } catch (error) {
       next(error);
     }
@@ -91,7 +91,7 @@ export class AuthController {
     try {
       await authService.logout(req.user!.userId);
       res.clearCookie('refreshToken', { path: '/api/v1/auth/refresh' });
-      sendSuccess(res, null, 'Logged out');
+      sendSuccess(res, null, 'Đăng xuất thành công');
     } catch (error) {
       next(error);
     }
@@ -102,22 +102,22 @@ export class AuthController {
       const { code } = req.body;
 
       const raw = await redis.get(`oauth:code:${code}`);
-      if (!raw) throw new AppError('Invalid or expired authorization code', 400);
+      if (!raw) throw new AppError('Mã xác thực không hợp lệ hoặc đã hết hạn', 400);
       await redis.del(`oauth:code:${code}`);
 
       let tokens: { user?: unknown; accessToken?: string; refreshToken?: string };
       try {
         tokens = JSON.parse(raw);
       } catch {
-        throw new AppError('Invalid authorization code data', 400);
+        throw new AppError('Dữ liệu mã xác thực không hợp lệ', 400);
       }
 
       if (!tokens.accessToken || !tokens.refreshToken || !tokens.user) {
-        throw new AppError('Malformed authorization code data', 400);
+        throw new AppError('Dữ liệu mã xác thực bị lỗi', 400);
       }
 
       res.cookie('refreshToken', tokens.refreshToken, COOKIE_OPTIONS);
-      sendSuccess(res, { user: tokens.user, accessToken: tokens.accessToken }, 'Login successful');
+      sendSuccess(res, { user: tokens.user, accessToken: tokens.accessToken }, 'Đăng nhập thành công');
     } catch (error) {
       next(error);
     }
@@ -158,7 +158,7 @@ export class AuthController {
       if (!email) {
         return res.redirect(
           `${config.frontendUrl}/login?error=github_no_email&message=` +
-          encodeURIComponent('Please set a public email on GitHub before signing in.')
+          encodeURIComponent('Vui lòng thiết lập email công khai trên GitHub trước khi đăng nhập.')
         );
       }
       if (emailEntry.verified === false) {

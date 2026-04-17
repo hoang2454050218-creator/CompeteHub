@@ -11,7 +11,7 @@ export const createCompetitionSchema = z.object({
   startDate: z.string().datetime().optional(),
   endDate: z.string().datetime().optional(),
   evalMetric: z.enum(['ACCURACY', 'RMSE', 'F1_SCORE', 'AUC_ROC', 'LOG_LOSS', 'CUSTOM']).default('ACCURACY'),
-  pubPrivSplit: z.number().gt(0, 'Must be greater than 0').lt(1, 'Must be less than 1').default(0.3),
+  pubPrivSplit: z.number().gt(0, 'Phải lớn hơn 0').lt(1, 'Phải nhỏ hơn 1').default(0.3),
   maxTeamSize: z.number().int().min(1).default(1),
   maxDailySubs: z.number().int().min(1).default(5),
   maxTotalSubs: z.number().int().optional(),
@@ -24,7 +24,7 @@ export const createCompetitionSchema = z.object({
     }
     return true;
   },
-  { message: 'End date must be after start date', path: ['endDate'] }
+  { message: 'Ngày kết thúc phải sau ngày bắt đầu', path: ['endDate'] }
 );
 
 export const updateCompetitionSchema = z.object({

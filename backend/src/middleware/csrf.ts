@@ -13,7 +13,7 @@ export function csrfProtection(req: Request, _res: Response, next: NextFunction)
 
   if (origin) {
     if (origin === allowedOrigin) return next();
-    return next(new AppError('CSRF validation failed', 403, 'CSRF_ERROR'));
+    return next(new AppError('Xác thực CSRF thất bại', 403, 'CSRF_ERROR'));
   }
 
   if (referer) {
@@ -23,8 +23,8 @@ export function csrfProtection(req: Request, _res: Response, next: NextFunction)
     } catch {
       // invalid referer URL
     }
-    return next(new AppError('CSRF validation failed', 403, 'CSRF_ERROR'));
+    return next(new AppError('Xác thực CSRF thất bại', 403, 'CSRF_ERROR'));
   }
 
-  return next(new AppError('CSRF validation failed: missing origin', 403, 'CSRF_ERROR'));
+  return next(new AppError('Xác thực CSRF thất bại: thiếu origin', 403, 'CSRF_ERROR'));
 }

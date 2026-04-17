@@ -10,7 +10,7 @@ export async function authenticate(req: Request, _res: Response, next: NextFunct
     const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
 
     if (!token) {
-      throw new AppError('Authentication required', 401, 'UNAUTHORIZED');
+      throw new AppError('Yêu cầu đăng nhập', 401, 'UNAUTHORIZED');
     }
 
     const decoded = verifyAccessToken(token);
@@ -21,7 +21,7 @@ export async function authenticate(req: Request, _res: Response, next: NextFunct
     });
 
     if (!user || !user.isActive) {
-      throw new AppError('Account is deactivated or not found', 401, 'UNAUTHORIZED');
+      throw new AppError('Tài khoản đã bị vô hiệu hóa hoặc không tồn tại', 401, 'UNAUTHORIZED');
     }
 
     req.user = {
@@ -33,7 +33,7 @@ export async function authenticate(req: Request, _res: Response, next: NextFunct
     next();
   } catch (error) {
     if (error instanceof AppError) return next(error);
-    next(new AppError('Invalid or expired token', 401, 'UNAUTHORIZED'));
+    next(new AppError('Token không hợp lệ hoặc đã hết hạn', 401, 'UNAUTHORIZED'));
   }
 }
 
@@ -65,10 +65,10 @@ export async function optionalAuth(req: Request, _res: Response, next: NextFunct
 export function authorize(...roles: Role[]) {
   return (req: Request, _res: Response, next: NextFunction) => {
     if (!req.user) {
-      return next(new AppError('Authentication required', 401, 'UNAUTHORIZED'));
+      return next(new AppError('Yêu cầu đăng nhập', 401, 'UNAUTHORIZED'));
     }
     if (!roles.includes(req.user.role)) {
-      return next(new AppError('Insufficient permissions', 403, 'FORBIDDEN'));
+      return next(new AppError('Bạn không có đủ quyền', 403, 'FORBIDDEN'));
     }
     next();
   };
@@ -77,12 +77,12 @@ export function authorize(...roles: Role[]) {
 export async function requireEnrolled(req: Request, _res: Response, next: NextFunction) {
   try {
     if (!req.user) {
-      throw new AppError('Authentication required', 401, 'UNAUTHORIZED');
+      throw new AppError('Yêu cầu đăng nhập', 401, 'UNAUTHORIZED');
     }
 
     const competitionId = req.params.id || req.params.competitionId;
     if (!competitionId) {
-      throw new AppError('Competition ID required', 400);
+      throw new AppError('Thiếu mã cuộc thi', 400);
     }
 
     if (req.user.role === 'ADMIN') return next();
@@ -97,7 +97,7 @@ export async function requireEnrolled(req: Request, _res: Response, next: NextFu
     });
 
     if (!enrollment) {
-      throw new AppError('You must be enrolled in this competition', 403, 'NOT_ENROLLED');
+      throw new AppError('Bạn phải tham gia cuộc thi này trước', 403, 'NOT_ENROLLED');
     }
 
     next();

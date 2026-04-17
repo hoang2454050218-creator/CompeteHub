@@ -1,17 +1,18 @@
-import { useEffect, useState } from 'react';
+﻿import { useEffect, useState } from 'react';
 import { Link, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { Trophy, Github } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api, { scheduleTokenRefresh } from '../services/api';
 import { useAuthStore } from '../stores/authStore';
+import { getApiErrorMessage } from '../utils/displayText';
 
 const OAUTH_ERROR_MESSAGES: Record<string, string> = {
-  oauth_failed: 'Sign-in failed. Please try again.',
-  invalid_state: 'Sign-in expired or replayed. Please try again.',
-  email_not_verified: 'Your provider account has no verified email. Please verify your email first.',
-  oauth_missing_profile: 'Your provider profile is missing email or name.',
-  github_no_email: 'Set a public email on your GitHub account before signing in.',
-  account_exists: 'An account with this email exists. Please sign in with your password first.',
+  oauth_failed: 'Đăng nhập không thành công. Vui lòng thử lại.',
+  invalid_state: 'Phiên đăng nhập đã hết hạn hoặc không hợp lệ. Vui lòng thử lại.',
+  email_not_verified: 'Tài khoản đăng nhập chưa có email xác minh. Vui lòng xác minh email trước.',
+  oauth_missing_profile: 'Tài khoản đăng nhập thiếu thông tin email hoặc họ tên.',
+  github_no_email: 'Vui lòng thiết lập email công khai trên GitHub trước khi đăng nhập.',
+  account_exists: 'Email này đã tồn tại. Vui lòng đăng nhập bằng mật khẩu trước.',
 };
 
 export default function Login() {
@@ -23,7 +24,7 @@ export default function Login() {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
-  const from = (location.state as any)?.from?.pathname || '/';
+  const from = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname || '/';
 
   useEffect(() => {
     api.get('/auth/oauth-providers').then((res) => setProviders(res.data.data)).catch(() => {});
@@ -32,7 +33,7 @@ export default function Login() {
   useEffect(() => {
     const err = searchParams.get('error');
     if (err) {
-      toast.error(OAUTH_ERROR_MESSAGES[err] || `Sign-in error: ${err}`);
+      toast.error(OAUTH_ERROR_MESSAGES[err] || `Lỗi đăng nhập: ${err}`);
       const next = new URLSearchParams(searchParams);
       next.delete('error');
       setSearchParams(next, { replace: true });
@@ -47,10 +48,10 @@ export default function Login() {
       const { user, accessToken } = res.data.data;
       setAuth(user, accessToken);
       scheduleTokenRefresh(accessToken);
-      toast.success('Welcome back!');
+      toast.success('Chào mừng bạn quay lại.');
       navigate(from, { replace: true });
-    } catch (err: any) {
-      toast.error(err.response?.data?.message || 'Login failed');
+    } catch (err: unknown) {
+      toast.error(getApiErrorMessage(err, 'Đăng nhập thất bại.'));
     } finally {
       setLoading(false);
     }
@@ -63,9 +64,9 @@ export default function Login() {
       <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-primary-600 via-primary-700 to-primary-900 items-center justify-center p-12">
         <div className="max-w-md text-white">
           <Trophy className="h-16 w-16 mb-8" />
-          <h1 className="text-4xl font-bold mb-4">Welcome to CompeteHub</h1>
+          <h1 className="text-4xl font-bold mb-4">Chào mừng đến với CompeteHub</h1>
           <p className="text-lg text-primary-100">
-            Join data science competitions, showcase your skills, and climb the leaderboard.
+            Tham gia các cuộc thi khoa học dữ liệu, thể hiện năng lực và vươn lên bảng xếp hạng.
           </p>
         </div>
       </div>
@@ -77,10 +78,10 @@ export default function Login() {
             <span className="text-2xl font-bold text-gray-900 dark:text-white">CompeteHub</span>
           </div>
 
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Sign in to your account</h2>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Đăng nhập vào tài khoản</h2>
           <p className="text-gray-500 mb-8">
-            Don't have an account?{' '}
-            <Link to="/register" className="text-primary-600 hover:text-primary-700 font-medium">Sign up</Link>
+            Chưa có tài khoản?{' '}
+            <Link to="/register" className="text-primary-600 hover:text-primary-700 font-medium">Đăng ký</Link>
           </p>
 
           {oauthEnabled && (
@@ -102,7 +103,7 @@ export default function Login() {
 
               <div className="relative my-6">
                 <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-200 dark:border-dark-border" /></div>
-                <div className="relative flex justify-center text-sm"><span className="px-4 bg-gray-50 dark:bg-dark-bg text-gray-500">or continue with email</span></div>
+                <div className="relative flex justify-center text-sm"><span className="px-4 bg-gray-50 dark:bg-dark-bg text-gray-500">hoặc tiếp tục bằng email</span></div>
               </div>
             </>
           )}
@@ -115,14 +116,14 @@ export default function Login() {
 
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Password</label>
-                <Link to="/forgot-password" className="text-sm text-primary-600 hover:text-primary-700">Forgot?</Link>
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Mật khẩu</label>
+                <Link to="/forgot-password" className="text-sm text-primary-600 hover:text-primary-700">Quên mật khẩu?</Link>
               </div>
-              <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required className="input-field" placeholder="Enter your password" />
+              <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required className="input-field" placeholder="Nhập mật khẩu" />
             </div>
 
             <button type="submit" disabled={loading} className="btn-primary w-full">
-              {loading ? 'Signing in...' : 'Sign In'}
+              {loading ? 'Đang đăng nhập...' : 'Đăng nhập'}
             </button>
           </form>
         </div>

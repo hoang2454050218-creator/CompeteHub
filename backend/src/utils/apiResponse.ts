@@ -7,7 +7,7 @@ interface Pagination {
   totalPages: number;
 }
 
-export function sendSuccess(res: Response, data: unknown, message = 'Success', statusCode = 200, pagination?: Pagination) {
+export function sendSuccess(res: Response, data: unknown, message = 'Thành công', statusCode = 200, pagination?: Pagination) {
   const response: { success: boolean; data: unknown; message: string; pagination?: Pagination } = { success: true, data, message };
   if (pagination) response.pagination = pagination;
   return res.status(statusCode).json(response);

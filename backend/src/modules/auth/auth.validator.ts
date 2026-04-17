@@ -2,25 +2,25 @@ import { z } from 'zod';
 
 // AUDIT-FIX: Password complexity enforcement
 const passwordSchema = z.string()
-  .min(8, 'Password must be at least 8 characters')
-  .max(128, 'Password too long')
-  .regex(/[A-Z]/, 'Must contain at least one uppercase letter')
-  .regex(/[a-z]/, 'Must contain at least one lowercase letter')
-  .regex(/[0-9]/, 'Must contain at least one digit');
+  .min(8, 'Mật khẩu phải có ít nhất 8 ký tự')
+  .max(128, 'Mật khẩu quá dài')
+  .regex(/[A-Z]/, 'Phải có ít nhất 1 chữ in hoa')
+  .regex(/[a-z]/, 'Phải có ít nhất 1 chữ thường')
+  .regex(/[0-9]/, 'Phải có ít nhất 1 chữ số');
 
 export const registerSchema = z.object({
-  email: z.string().email('Invalid email address'),
+  email: z.string().email('Địa chỉ email không hợp lệ'),
   password: passwordSchema,
-  name: z.string().min(2, 'Name must be at least 2 characters').max(100),
+  name: z.string().min(2, 'Họ và tên phải có ít nhất 2 ký tự').max(100),
 });
 
 export const loginSchema = z.object({
-  email: z.string().email('Invalid email address'),
-  password: z.string().min(1, 'Password is required'),
+  email: z.string().email('Địa chỉ email không hợp lệ'),
+  password: z.string().min(1, 'Vui lòng nhập mật khẩu'),
 });
 
 export const forgotPasswordSchema = z.object({
-  email: z.string().email('Invalid email address'),
+  email: z.string().email('Địa chỉ email không hợp lệ'),
 });
 
 export const resetPasswordSchema = z.object({
@@ -33,7 +33,7 @@ export const refreshTokenSchema = z.object({
 });
 
 export const exchangeCodeSchema = z.object({
-  code: z.string().min(1, 'Authorization code is required').max(256),
+  code: z.string().min(1, 'Vui lòng cung cấp mã xác thực').max(256),
 });
 
 export type RegisterInput = z.infer<typeof registerSchema>;

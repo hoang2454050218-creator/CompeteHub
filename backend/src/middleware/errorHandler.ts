@@ -19,18 +19,18 @@ export function errorHandler(err: Error, req: Request, res: Response, _next: Nex
   if (err instanceof Prisma.PrismaClientKnownRequestError) {
     switch (err.code) {
       case 'P2002':
-        return sendError(res, 'A record with this value already exists', 409, 'DUPLICATE_ENTRY');
+        return sendError(res, 'Dữ liệu này đã tồn tại', 409, 'DUPLICATE_ENTRY');
       case 'P2025':
-        return sendError(res, 'Record not found', 404, 'NOT_FOUND');
+        return sendError(res, 'Không tìm thấy dữ liệu yêu cầu', 404, 'NOT_FOUND');
       case 'P2003':
-        return sendError(res, 'Referenced record does not exist', 400, 'FK_VIOLATION');
+        return sendError(res, 'Dữ liệu tham chiếu không tồn tại', 400, 'FK_VIOLATION');
       case 'P2034':
-        return sendError(res, 'Transaction conflict, please retry', 409, 'TRANSACTION_CONFLICT');
+        return sendError(res, 'Hệ thống đang bận. Vui lòng thử lại', 409, 'TRANSACTION_CONFLICT');
     }
   }
 
   if (err instanceof Prisma.PrismaClientValidationError) {
-    return sendError(res, 'Invalid data provided', 400, 'VALIDATION_ERROR');
+    return sendError(res, 'Dữ liệu gửi lên không hợp lệ', 400, 'VALIDATION_ERROR');
   }
 
   // AUDIT-FIX M-07: don't log raw body for SyntaxError (body parser failure)
@@ -40,5 +40,5 @@ export function errorHandler(err: Error, req: Request, res: Response, _next: Nex
     : err;
   logger.error({ err: safeErr, method: req.method, url: req.originalUrl }, 'Unhandled error');
   Sentry.captureException(err, { extra: { method: req.method, url: req.originalUrl } });
-  return sendError(res, 'Internal server error', 500, 'INTERNAL_ERROR');
+  return sendError(res, 'Hệ thống gặp lỗi nội bộ', 500, 'INTERNAL_ERROR');
 }

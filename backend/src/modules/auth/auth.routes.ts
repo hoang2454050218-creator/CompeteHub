@@ -38,7 +38,7 @@ function ensureProvider(provider: 'google' | 'github') {
     if (!conf.clientId || !conf.clientSecret) {
       return next(
         new AppError(
-          `${provider === 'google' ? 'Google' : 'GitHub'} sign-in is not configured on this server. Use email + password instead.`,
+          `${provider === 'google' ? 'Google' : 'GitHub'} chưa được cấu hình trên máy chủ. Vui lòng dùng email và mật khẩu để đăng nhập.`,
           503,
           'OAUTH_NOT_CONFIGURED'
         )

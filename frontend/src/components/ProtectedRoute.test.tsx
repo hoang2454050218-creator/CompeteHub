@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+﻿import { render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import ProtectedRoute from './ProtectedRoute';
@@ -40,14 +40,14 @@ describe('ProtectedRoute', () => {
     expect(screen.getByTestId('protected-content')).toBeTruthy();
   });
 
-  it('shows Access Denied inline when role does not match', () => {
+  it('shows access denied inline when role does not match', () => {
     useAuthStore.setState({
       user: { id: '1', email: 'a@b.com', name: 'Test', role: 'PARTICIPANT', createdAt: '' },
       accessToken: 'token',
       isAuthenticated: true,
     });
     renderWithRouter('/protected', ['ADMIN']);
-    expect(screen.getByText(/Access Denied/i)).toBeTruthy();
+    expect(screen.getByRole('heading', { name: /Không có quyền truy cập/i })).toBeTruthy();
     expect(screen.queryByTestId('protected-content')).toBeNull();
   });
 

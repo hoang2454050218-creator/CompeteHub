@@ -16,6 +16,7 @@ import { initPassport } from './config/passport';
 import { initSocket, getIO } from './config/socket';
 import { ensureBucket } from './config/minio';
 import { redis } from './config/redis';
+import { initZodErrorMap } from './config/zod';
 import { errorHandler } from './middleware/errorHandler';
 import { csrfProtection } from './middleware/csrf';
 import { swaggerSpec } from './config/swagger';
@@ -37,6 +38,7 @@ import adminRoutes from './modules/admin/admin.routes';
 import { startInlineWorker, stopInlineWorker } from './worker';
 
 initSentry();
+initZodErrorMap();
 
 const app = express();
 const httpServer = createServer(app);
@@ -92,10 +94,17 @@ function clientIpKey(req: Request): string {
 }
 
 const rateLimitStore = new RedisStore({ sendCommand: redisSendCommand });
+const rateLimitResponse = {
+  success: false,
+  data: null,
+  message: 'Bạn đã gửi quá nhiều yêu cầu. Vui lòng thử lại sau.',
+  errorCode: 'RATE_LIMITED',
+};
 
 const globalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 500,
+  message: rateLimitResponse,
   standardHeaders: true,
   legacyHeaders: false,
   store: rateLimitStore,
@@ -112,6 +121,7 @@ const authRateLimitStore = new RedisStore({
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 5,
+  message: rateLimitResponse,
   standardHeaders: true,
   legacyHeaders: false,
   store: authRateLimitStore,
@@ -126,6 +136,7 @@ const registerLimiterStore = new RedisStore({
 const registerLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
   max: 3,
+  message: rateLimitResponse,
   standardHeaders: true,
   legacyHeaders: false,
   store: registerLimiterStore,
@@ -143,6 +154,7 @@ const refreshLimiterStore = new RedisStore({
 const refreshLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 30,
+  message: rateLimitResponse,
   standardHeaders: true,
   legacyHeaders: false,
   store: refreshLimiterStore,

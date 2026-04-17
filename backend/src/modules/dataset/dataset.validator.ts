@@ -4,7 +4,7 @@ import { z } from 'zod';
 // `isPublic` arrives as a string from form-data (`'true'`/`'false'`); we accept
 // the string form here and let the controller coerce.
 export const uploadDatasetSchema = z.object({
-  title: z.string().trim().min(1, 'Title is required').max(200).optional(),
+  title: z.string().trim().min(1, 'Tiêu đề là bắt buộc').max(200).optional(),
   description: z.string().max(2000).optional(),
   isPublic: z.union([z.literal('true'), z.literal('false'), z.boolean()]).optional(),
 });

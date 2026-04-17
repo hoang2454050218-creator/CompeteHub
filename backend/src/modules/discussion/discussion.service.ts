@@ -62,18 +62,18 @@ export class DiscussionService {
       },
     });
 
-    if (!discussion) throw new AppError('Discussion not found', 404);
+    if (!discussion) throw new AppError('Không tìm thấy chủ đề thảo luận', 404);
     return discussion;
   }
 
   async createReply(discussionId: string, authorId: string, content: string, parentReplyId?: string) {
     const discussion = await prisma.discussion.findUnique({ where: { id: discussionId } });
-    if (!discussion) throw new AppError('Discussion not found', 404);
+    if (!discussion) throw new AppError('Không tìm thấy chủ đề thảo luận', 404);
 
     if (parentReplyId) {
       const parent = await prisma.discussionReply.findUnique({ where: { id: parentReplyId } });
-      if (!parent) throw new AppError('Parent reply not found', 404);
-      if (parent.parentReplyId) throw new AppError('Cannot nest replies more than 2 levels', 400);
+      if (!parent) throw new AppError('Không tìm thấy phản hồi cha', 404);
+      if (parent.parentReplyId) throw new AppError('Không thể lồng phản hồi quá 2 cấp', 400);
     }
 
     const safeContent = stripHtmlTags(content);
@@ -97,12 +97,12 @@ export class DiscussionService {
       const exists = await prisma.discussion.findFirst({
         where: { id: voteableId, competitionId },
       });
-      if (!exists) throw new AppError('Discussion not found in this competition', 404);
+      if (!exists) throw new AppError('Không tìm thấy chủ đề thảo luận trong cuộc thi này', 404);
     } else {
       const exists = await prisma.discussionReply.findFirst({
         where: { id: voteableId, discussion: { competitionId } },
       });
-      if (!exists) throw new AppError('Reply not found in this competition', 404);
+      if (!exists) throw new AppError('Không tìm thấy phản hồi trong cuộc thi này', 404);
     }
 
     return prisma.$transaction(async (tx) => {
@@ -141,8 +141,8 @@ export class DiscussionService {
 
   async updateTopic(discussionId: string, userId: string, title?: string, content?: string) {
     const discussion = await prisma.discussion.findUnique({ where: { id: discussionId } });
-    if (!discussion) throw new AppError('Discussion not found', 404);
-    if (discussion.authorId !== userId) throw new AppError('Not authorized', 403);
+    if (!discussion) throw new AppError('Không tìm thấy chủ đề thảo luận', 404);
+    if (discussion.authorId !== userId) throw new AppError('Bạn không có quyền thực hiện thao tác này', 403);
 
     const data: Record<string, string> = {};
     if (title) data.title = stripHtmlTags(title);
@@ -157,16 +157,16 @@ export class DiscussionService {
 
   async deleteTopic(discussionId: string, userId: string, isAdmin = false) {
     const discussion = await prisma.discussion.findUnique({ where: { id: discussionId } });
-    if (!discussion) throw new AppError('Discussion not found', 404);
-    if (!isAdmin && discussion.authorId !== userId) throw new AppError('Not authorized', 403);
+    if (!discussion) throw new AppError('Không tìm thấy chủ đề thảo luận', 404);
+    if (!isAdmin && discussion.authorId !== userId) throw new AppError('Bạn không có quyền thực hiện thao tác này', 403);
 
     await prisma.discussion.delete({ where: { id: discussionId } });
   }
 
   async updateReply(replyId: string, userId: string, content: string) {
     const reply = await prisma.discussionReply.findUnique({ where: { id: replyId } });
-    if (!reply) throw new AppError('Reply not found', 404);
-    if (reply.authorId !== userId) throw new AppError('Not authorized', 403);
+    if (!reply) throw new AppError('Không tìm thấy phản hồi', 404);
+    if (reply.authorId !== userId) throw new AppError('Bạn không có quyền thực hiện thao tác này', 403);
 
     return prisma.discussionReply.update({
       where: { id: replyId },
@@ -180,8 +180,8 @@ export class DiscussionService {
       where: { id: replyId },
       select: { id: true, authorId: true, discussionId: true },
     });
-    if (!reply) throw new AppError('Reply not found', 404);
-    if (!isAdmin && reply.authorId !== userId) throw new AppError('Not authorized', 403);
+    if (!reply) throw new AppError('Không tìm thấy phản hồi', 404);
+    if (!isAdmin && reply.authorId !== userId) throw new AppError('Bạn không có quyền thực hiện thao tác này', 403);
 
     await prisma.$transaction([
       prisma.discussionReply.delete({ where: { id: replyId } }),
@@ -197,10 +197,10 @@ export class DiscussionService {
       where: { id: discussionId, competitionId },
       include: { competition: { select: { hostId: true } } },
     });
-    if (!discussion) throw new AppError('Discussion not found in this competition', 404);
+    if (!discussion) throw new AppError('Không tìm thấy chủ đề thảo luận trong cuộc thi này', 404);
 
     if (!isAdmin && discussion.competition.hostId !== userId) {
-      throw new AppError('Only the competition host or admin can pin topics', 403);
+      throw new AppError('Chỉ đơn vị tổ chức hoặc quản trị viên mới có thể ghim chủ đề', 403);
     }
 
     return prisma.discussion.update({

@@ -8,7 +8,7 @@ export class TeamController {
   async create(req: Request, res: Response, next: NextFunction) {
     try {
       const team = await service.create(req.user!.userId, req.body.competitionId, req.body.name);
-      sendSuccess(res, team, 'Team created', 201);
+      sendSuccess(res, team, 'Tạo đội thành công', 201);
     } catch (error) {
       next(error);
     }
@@ -17,7 +17,7 @@ export class TeamController {
   async invite(req: Request, res: Response, next: NextFunction) {
     try {
       const invitation = await service.invite(req.params.id, req.user!.userId, req.body.email);
-      sendSuccess(res, invitation, 'Invitation sent', 201);
+      sendSuccess(res, invitation, 'Gửi lời mời thành công', 201);
     } catch (error) {
       next(error);
     }
@@ -46,7 +46,7 @@ export class TeamController {
       const page = parseInt(req.query.page as string) || 1;
       const limit = parseInt(req.query.limit as string) || 50;
       const result = await service.getMyInvitations(req.user!.userId, page, limit);
-      sendSuccess(res, result.data, 'Success', 200, result.pagination);
+      sendSuccess(res, result.data, 'Thành công', 200, result.pagination);
     } catch (error) {
       next(error);
     }

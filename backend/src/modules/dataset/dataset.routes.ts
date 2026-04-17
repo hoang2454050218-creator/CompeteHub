@@ -35,7 +35,7 @@ const upload = multer({
     if (ALLOWED_DATASET_TYPES.has(file.mimetype) || ALLOWED_DATASET_EXTENSIONS.test(file.originalname)) {
       cb(null, true);
     } else {
-      cb(new Error('File type not allowed. Accepted: csv, json, zip, gz, parquet, tsv, txt, xlsx'));
+      cb(new Error('Định dạng tệp không được hỗ trợ. Chấp nhận: csv, json, zip, gz, parquet, tsv, txt, xlsx'));
     }
   },
 });
@@ -46,7 +46,7 @@ function validateMagicBytes(req: Request, _res: Response, next: NextFunction) {
   if (!validateDatasetMagicBytes(req.file.path, ext)) {
     const fs = require('fs');
     fs.unlink(req.file.path, () => {});
-    return next(new AppError('File content does not match its extension', 400, 'INVALID_FILE_CONTENT'));
+    return next(new AppError('Nội dung tệp không khớp với phần mở rộng', 400, 'INVALID_FILE_CONTENT'));
   }
   next();
 }

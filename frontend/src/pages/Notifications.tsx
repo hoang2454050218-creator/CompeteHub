@@ -1,9 +1,46 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Bell, Check, CheckCheck } from 'lucide-react';
+﻿import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Bell, CheckCheck } from 'lucide-react';
 import api from '../services/api';
 import { Notification } from '../types';
 import { PageLoader } from '../components/LoadingSpinner';
 import { cn, timeAgo } from '../utils/cn';
+
+function getNotificationTitle(notification: Notification) {
+  if (notification.type !== 'SUBMISSION_SCORED') {
+    return notification.title;
+  }
+
+  if (
+    notification.title === 'Submission Failed' ||
+    notification.title === 'Bài nộp chấm điểm thất bại'
+  ) {
+    return 'Chấm điểm thất bại';
+  }
+
+  return 'Đã chấm bài nộp';
+}
+
+function getNotificationMessage(notification: Notification) {
+  if (notification.type !== 'SUBMISSION_SCORED') {
+    return notification.message;
+  }
+
+  const successMatch =
+    notification.message.match(/^Your submission scored ([\d.]+) \(public\)$/i) ||
+    notification.message.match(/^Bài nộp của bạn đạt ([\d.]+) điểm công khai$/i);
+  if (successMatch) {
+    return `Bài nộp của bạn đạt ${successMatch[1]} điểm ở bảng công khai.`;
+  }
+
+  const failureMatch =
+    notification.message.match(/^Scoring failed: (.+)$/i) ||
+    notification.message.match(/^Chấm điểm thất bại: (.+)$/i);
+  if (failureMatch) {
+    return `Chấm điểm thất bại: ${failureMatch[1]}`;
+  }
+
+  return notification.message;
+}
 
 export default function Notifications() {
   const queryClient = useQueryClient();
@@ -24,7 +61,16 @@ export default function Notifications() {
   });
 
   if (isLoading) return <PageLoader />;
-  if (isError) return <div className="max-w-3xl mx-auto px-4 py-8"><div className="card p-12 text-center"><h3 className="text-lg font-medium text-red-600 mb-2">Failed to load notifications</h3><p className="text-gray-500">Please try again later.</p></div></div>;
+  if (isError) {
+    return (
+      <div className="max-w-3xl mx-auto px-4 py-8">
+        <div className="card p-12 text-center">
+          <h3 className="text-lg font-medium text-red-600 mb-2">Không thể tải thông báo</h3>
+          <p className="text-gray-500">Vui lòng thử lại sau.</p>
+        </div>
+      </div>
+    );
+  }
 
   const notifications = data?.notifications as Notification[] || [];
   const unreadCount = data?.unreadCount || 0;
@@ -33,12 +79,12 @@ export default function Notifications() {
     <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Notifications</h1>
-          {unreadCount > 0 && <p className="text-sm text-gray-500 mt-1">{unreadCount} unread</p>}
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Thông báo</h1>
+          {unreadCount > 0 && <p className="text-sm text-gray-500 mt-1">{unreadCount} chưa đọc</p>}
         </div>
         {unreadCount > 0 && (
           <button onClick={() => markAllMutation.mutate()} disabled={markAllMutation.isPending} className="btn-secondary text-sm gap-1 disabled:opacity-50">
-            <CheckCheck className="h-4 w-4" /> {markAllMutation.isPending ? 'Marking...' : 'Mark all read'}
+            <CheckCheck className="h-4 w-4" /> {markAllMutation.isPending ? 'Đang cập nhật...' : 'Đánh dấu tất cả đã đọc'}
           </button>
         )}
       </div>
@@ -59,8 +105,8 @@ export default function Notifications() {
                   <Bell className={cn('h-4 w-4', n.isRead ? 'text-gray-400' : 'text-primary-600')} />
                 </div>
                 <div>
-                  <h3 className={cn('font-medium', n.isRead ? 'text-gray-600' : 'text-gray-900 dark:text-white')}>{n.title}</h3>
-                  <p className="text-sm text-gray-500 mt-0.5">{n.message}</p>
+                  <h3 className={cn('font-medium', n.isRead ? 'text-gray-600' : 'text-gray-900 dark:text-white')}>{getNotificationTitle(n)}</h3>
+                  <p className="text-sm text-gray-500 mt-0.5">{getNotificationMessage(n)}</p>
                 </div>
               </div>
               <span className="text-xs text-gray-400 flex-shrink-0 ml-4">{timeAgo(n.createdAt)}</span>
@@ -71,8 +117,8 @@ export default function Notifications() {
         {notifications.length === 0 && (
           <div className="card p-12 text-center">
             <Bell className="h-12 w-12 mx-auto text-gray-300 mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-1">No notifications</h3>
-            <p className="text-gray-500">You're all caught up!</p>
+            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-1">Chưa có thông báo</h3>
+            <p className="text-gray-500">Bạn đã xem hết thông báo.</p>
           </div>
         )}
       </div>

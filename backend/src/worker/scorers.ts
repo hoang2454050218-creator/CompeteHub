@@ -2,7 +2,7 @@ export type ScorerFn = (actual: number[], predicted: number[]) => number;
 
 function assertNonEmpty(actual: number[], predicted: number[]) {
   if (actual.length === 0 || predicted.length === 0) {
-    throw new Error('Cannot compute score on empty data partition');
+    throw new Error('Không thể tính điểm trên tập dữ liệu rỗng');
   }
 }
 
@@ -108,7 +108,7 @@ export const SCORERS: Record<string, ScorerFn> = {
   AUC_ROC: aucRoc,
   LOG_LOSS: logLoss,
   CUSTOM: () => {
-    throw new Error('CUSTOM metric requires a scoring script configured by the competition host. Please contact the host.');
+    throw new Error('Chỉ số CUSTOM yêu cầu kịch bản chấm điểm do đơn vị tổ chức cấu hình. Vui lòng liên hệ đơn vị tổ chức.');
   },
 };
 

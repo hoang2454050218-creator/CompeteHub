@@ -37,17 +37,17 @@ export class EmailService {
 
     await this.send({
       to,
-      subject: 'Reset your password - Competition Platform',
+      subject: 'Đặt lại mật khẩu - Nền tảng cuộc thi',
       html: `
         <div style="max-width: 600px; margin: 0 auto; font-family: Arial, sans-serif;">
-          <h2>Password Reset</h2>
-          <p>Hi ${safeName},</p>
-          <p>You requested a password reset. Click the button below to reset your password:</p>
+          <h2>Đặt lại mật khẩu</h2>
+          <p>Xin chào ${safeName},</p>
+          <p>Bạn đã yêu cầu đặt lại mật khẩu. Hãy bấm nút bên dưới để tiếp tục:</p>
           <a href="${resetUrl}" style="display: inline-block; background: #3b82f6; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin: 16px 0;">
-            Reset Password
+            Đặt lại mật khẩu
           </a>
-          <p>This link expires in 1 hour.</p>
-          <p>If you didn't request this, you can safely ignore this email.</p>
+          <p>Liên kết này sẽ hết hạn sau 1 giờ.</p>
+          <p>Nếu bạn không yêu cầu thao tác này, hãy bỏ qua email này.</p>
         </div>
       `,
     });
@@ -59,13 +59,13 @@ export class EmailService {
 
     await this.send({
       to,
-      subject: `${subject} - Competition Platform`,
+      subject: `${subject} - Nền tảng cuộc thi`,
       html: `
         <div style="max-width: 600px; margin: 0 auto; font-family: Arial, sans-serif;">
           <h2>${safeSubject}</h2>
           <p>${safeMessage}</p>
           <a href="${config.frontendUrl}" style="display: inline-block; background: #3b82f6; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin: 16px 0;">
-            View on Platform
+            Xem trên nền tảng
           </a>
         </div>
       `,

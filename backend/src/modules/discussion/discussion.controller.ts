@@ -9,7 +9,7 @@ export class DiscussionController {
   async createTopic(req: Request, res: Response, next: NextFunction) {
     try {
       const topic = await service.createTopic(req.params.id, req.user!.userId, req.body.title, req.body.content);
-      sendSuccess(res, topic, 'Topic created', 201);
+      sendSuccess(res, topic, 'Tạo chủ đề thành công', 201);
     } catch (error) {
       next(error);
     }
@@ -20,7 +20,7 @@ export class DiscussionController {
       const page = parseInt(req.query.page as string) || 1;
       const limit = parseInt(req.query.limit as string) || 20;
       const result = await service.listTopics(req.params.id, page, limit);
-      sendSuccess(res, result.data, 'Success', 200, result.pagination);
+      sendSuccess(res, result.data, 'Thành công', 200, result.pagination);
     } catch (error) {
       next(error);
     }
@@ -43,7 +43,7 @@ export class DiscussionController {
         req.body.content,
         req.body.parentReplyId
       );
-      sendSuccess(res, reply, 'Reply created', 201);
+      sendSuccess(res, reply, 'Tạo phản hồi thành công', 201);
     } catch (error) {
       next(error);
     }
@@ -65,7 +65,7 @@ export class DiscussionController {
   async updateTopic(req: Request, res: Response, next: NextFunction) {
     try {
       const topic = await service.updateTopic(req.params.discussionId, req.user!.userId, req.body.title, req.body.content);
-      sendSuccess(res, topic, 'Topic updated');
+      sendSuccess(res, topic, 'Cập nhật chủ đề thành công');
     } catch (error) {
       next(error);
     }
@@ -75,7 +75,7 @@ export class DiscussionController {
     try {
       const isAdmin = req.user!.role === 'ADMIN';
       await service.deleteTopic(req.params.discussionId, req.user!.userId, isAdmin);
-      sendSuccess(res, null, 'Topic deleted');
+      sendSuccess(res, null, 'Xóa chủ đề thành công');
     } catch (error) {
       next(error);
     }
@@ -84,7 +84,7 @@ export class DiscussionController {
   async updateReply(req: Request, res: Response, next: NextFunction) {
     try {
       const reply = await service.updateReply(req.params.replyId, req.user!.userId, req.body.content);
-      sendSuccess(res, reply, 'Reply updated');
+      sendSuccess(res, reply, 'Cập nhật phản hồi thành công');
     } catch (error) {
       next(error);
     }
@@ -94,7 +94,7 @@ export class DiscussionController {
     try {
       const isAdmin = req.user!.role === 'ADMIN';
       await service.deleteReply(req.params.replyId, req.user!.userId, isAdmin);
-      sendSuccess(res, null, 'Reply deleted');
+      sendSuccess(res, null, 'Xóa phản hồi thành công');
     } catch (error) {
       next(error);
     }

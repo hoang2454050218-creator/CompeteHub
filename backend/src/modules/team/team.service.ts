@@ -7,14 +7,14 @@ export class TeamService {
   async create(userId: string, competitionId: string, rawName: string) {
     const name = stripHtmlTags(rawName);
     const competition = await prisma.competition.findUnique({ where: { id: competitionId } });
-    if (!competition) throw new AppError('Competition not found', 404);
-    if (competition.maxTeamSize <= 1) throw new AppError('Teams are not enabled for this competition', 400);
+    if (!competition) throw new AppError('Không tìm thấy cuộc thi', 404);
+    if (competition.maxTeamSize <= 1) throw new AppError('Cuộc thi này không hỗ trợ đội', 400);
 
     const enrollment = await prisma.enrollment.findUnique({
       where: { userId_competitionId: { userId, competitionId } },
     });
-    if (!enrollment) throw new AppError('You must be enrolled', 403);
-    if (enrollment.teamId) throw new AppError('You are already in a team', 400);
+    if (!enrollment) throw new AppError('Bạn phải tham gia cuộc thi trước', 403);
+    if (enrollment.teamId) throw new AppError('Bạn đã thuộc một đội', 400);
 
     try {
       return await prisma.$transaction(async (tx) => {
@@ -29,7 +29,7 @@ export class TeamService {
       });
     } catch (err) {
       if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
-        throw new AppError('A team with this name already exists in the competition', 409);
+        throw new AppError('Đã tồn tại đội có tên này trong cuộc thi', 409);
       }
       throw err;
     }
@@ -40,25 +40,25 @@ export class TeamService {
       where: { id: teamId },
       include: { competition: true, members: true },
     });
-    if (!team) throw new AppError('Team not found', 404);
-    if (team.leaderId !== senderId) throw new AppError('Only team leader can invite', 403);
+    if (!team) throw new AppError('Không tìm thấy đội', 404);
+    if (team.leaderId !== senderId) throw new AppError('Chỉ đội trưởng mới có thể gửi lời mời', 403);
     if (team.members.length >= team.competition.maxTeamSize) {
-      throw new AppError('Team is full', 400);
+      throw new AppError('Đội đã đủ thành viên', 400);
     }
 
     if (team.competition.mergeDeadline && new Date() > team.competition.mergeDeadline) {
-      throw new AppError('Merge deadline has passed', 400);
+      throw new AppError('Đã quá hạn ghép đội', 400);
     }
 
     const receiver = await prisma.user.findUnique({ where: { email: receiverEmail } });
-    if (!receiver) throw new AppError('User not found', 404);
+    if (!receiver) throw new AppError('Không tìm thấy người dùng', 404);
 
     const enrollment = await prisma.enrollment.findUnique({
       where: { userId_competitionId: { userId: receiver.id, competitionId: team.competitionId } },
     });
-    if (!enrollment) throw new AppError('User must be enrolled in the competition', 400);
+    if (!enrollment) throw new AppError('Người dùng phải tham gia cuộc thi trước', 400);
     if (enrollment.teamId) {
-      throw new AppError('User is already in a team for this competition', 400, 'ALREADY_IN_TEAM');
+      throw new AppError('Người dùng đã thuộc một đội trong cuộc thi này', 400, 'ALREADY_IN_TEAM');
     }
 
     try {
@@ -71,7 +71,7 @@ export class TeamService {
       });
     } catch (err) {
       if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
-        throw new AppError('Invitation already sent to this user', 409);
+        throw new AppError('Đã gửi lời mời cho người dùng này trước đó', 409);
       }
       throw err;
     }
@@ -83,13 +83,13 @@ export class TeamService {
       include: { team: { include: { competition: true } } },
     });
 
-    if (!invitation) throw new AppError('Invitation not found', 404);
-    if (invitation.receiverId !== userId) throw new AppError('Not authorized', 403);
-    if (invitation.status !== 'PENDING') throw new AppError('Invitation already responded to', 400);
+    if (!invitation) throw new AppError('Không tìm thấy lời mời', 404);
+    if (invitation.receiverId !== userId) throw new AppError('Bạn không có quyền thực hiện thao tác này', 403);
+    if (invitation.status !== 'PENDING') throw new AppError('Lời mời này đã được phản hồi', 400);
 
     if (accept) {
       if (invitation.team.competition.mergeDeadline && new Date() > invitation.team.competition.mergeDeadline) {
-        throw new AppError('Cannot join team after merge deadline has passed', 400, 'MERGE_DEADLINE_PASSED');
+        throw new AppError('Không thể tham gia đội vì đã quá hạn ghép đội', 400, 'MERGE_DEADLINE_PASSED');
       }
 
       await prisma.$transaction(async (tx) => {
@@ -97,14 +97,14 @@ export class TeamService {
           where: { teamId: invitation.teamId },
         });
         if (currentMembers >= invitation.team.competition.maxTeamSize) {
-          throw new AppError('Team is full', 400);
+          throw new AppError('Đội đã đủ thành viên', 400);
         }
 
         const userEnrollment = await tx.enrollment.findUnique({
           where: { userId_competitionId: { userId, competitionId: invitation.team.competitionId } },
         });
         if (userEnrollment?.teamId) {
-          throw new AppError('You are already in a team', 400);
+          throw new AppError('Bạn đã thuộc một đội', 400);
         }
 
         await tx.teamInvitation.update({
@@ -139,7 +139,7 @@ export class TeamService {
         competition: { select: { id: true, hostId: true } },
       },
     });
-    if (!team) throw new AppError('Team not found', 404);
+    if (!team) throw new AppError('Không tìm thấy đội', 404);
 
     const isMember = team.members.some((m) => m.userId === requestUserId);
     const isHostOrAdmin = team.competition.hostId === requestUserId;

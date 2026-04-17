@@ -20,7 +20,7 @@ export class UserService {
     }
 
     const user = await prisma.user.findUnique({ where: { id: userId }, select });
-    if (!user) throw new AppError('User not found', 404);
+    if (!user) throw new AppError('Không tìm thấy người dùng', 404);
 
     const competitionHistory = await prisma.enrollment.findMany({
       where: { userId },

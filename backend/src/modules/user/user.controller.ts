@@ -18,7 +18,7 @@ export class UserController {
   async updateProfile(req: Request, res: Response, next: NextFunction) {
     try {
       const user = await service.updateProfile(req.user!.userId, req.body);
-      sendSuccess(res, user, 'Profile updated');
+      sendSuccess(res, user, 'Cập nhật hồ sơ thành công');
     } catch (error) {
       next(error);
     }

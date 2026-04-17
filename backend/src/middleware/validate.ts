@@ -20,7 +20,7 @@ export function validateUUID(...paramNames: string[]) {
     for (const name of paramNames) {
       const value = req.params[name];
       if (value && !UUID_REGEX.test(value)) {
-        return next(new AppError(`Invalid ${name} format`, 400, 'INVALID_ID'));
+        return next(new AppError(`Định dạng ${name} không hợp lệ`, 400, 'INVALID_ID'));
       }
     }
     next();

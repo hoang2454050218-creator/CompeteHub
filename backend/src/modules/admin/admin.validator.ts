@@ -4,7 +4,7 @@ export const updateUserSchema = z.object({
   role: z.enum(['PARTICIPANT', 'HOST', 'ADMIN']).optional(),
   isActive: z.boolean().optional(),
 }).refine((data) => data.role !== undefined || data.isActive !== undefined, {
-  message: 'At least one field (role or isActive) must be provided',
+  message: 'Cần cung cấp ít nhất một trường (vai trò hoặc trạng thái hoạt động)',
 });
 
 export const reviewCompetitionSchema = z.object({

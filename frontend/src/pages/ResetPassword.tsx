@@ -1,8 +1,9 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, CheckCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../services/api';
+import { getApiErrorMessage } from '../utils/displayText';
 
 export default function ResetPassword() {
   const [searchParams] = useSearchParams();
@@ -19,10 +20,10 @@ export default function ResetPassword() {
       <div className="min-h-screen flex items-center justify-center p-8 bg-gray-50 dark:bg-dark-bg">
         <div className="w-full max-w-md">
           <div className="card p-8 text-center">
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Invalid Reset Link</h2>
-            <p className="text-gray-500 mb-6">This password reset link is invalid or has expired.</p>
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Liên kết không hợp lệ</h2>
+            <p className="text-gray-500 mb-6">Liên kết đặt lại mật khẩu không hợp lệ hoặc đã hết hạn.</p>
             <Link to="/forgot-password" className="btn-primary inline-block">
-              Request New Link
+              Yêu cầu liên kết mới
             </Link>
           </div>
         </div>
@@ -34,12 +35,12 @@ export default function ResetPassword() {
     e.preventDefault();
 
     if (password !== confirmPassword) {
-      toast.error('Passwords do not match');
+      toast.error('Mật khẩu xác nhận không khớp.');
       return;
     }
 
     if (password.length < 8) {
-      toast.error('Password must be at least 8 characters');
+      toast.error('Mật khẩu phải có ít nhất 8 ký tự.');
       return;
     }
 
@@ -47,10 +48,10 @@ export default function ResetPassword() {
     try {
       await api.post('/auth/reset-password', { token, password });
       setSuccess(true);
-      toast.success('Password reset successfully');
+      toast.success('Đặt lại mật khẩu thành công.');
       setTimeout(() => navigate('/login'), 3000);
-    } catch (err: any) {
-      toast.error(err.response?.data?.message || 'Reset failed. Link may have expired.');
+    } catch (err: unknown) {
+      toast.error(getApiErrorMessage(err, 'Đặt lại mật khẩu thất bại. Liên kết có thể đã hết hạn.'));
     } finally {
       setLoading(false);
     }
@@ -62,10 +63,10 @@ export default function ResetPassword() {
         <div className="w-full max-w-md">
           <div className="card p-8 text-center">
             <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-4" />
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Password Reset!</h2>
-            <p className="text-gray-500 mb-6">Your password has been updated. Redirecting to login...</p>
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Đặt lại mật khẩu thành công</h2>
+            <p className="text-gray-500 mb-6">Mật khẩu của bạn đã được cập nhật. Đang chuyển đến trang đăng nhập...</p>
             <Link to="/login" className="btn-primary inline-block">
-              Go to Login
+              Đi đến trang đăng nhập
             </Link>
           </div>
         </div>
@@ -78,16 +79,16 @@ export default function ResetPassword() {
       <div className="w-full max-w-md">
         <div className="card p-8">
           <Link to="/login" className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 mb-6">
-            <ArrowLeft className="h-4 w-4" /> Back to login
+            <ArrowLeft className="h-4 w-4" /> Quay lại đăng nhập
           </Link>
 
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Set new password</h2>
-          <p className="text-gray-500 mb-6">Enter your new password below.</p>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Thiết lập mật khẩu mới</h2>
+          <p className="text-gray-500 mb-6">Nhập mật khẩu mới của bạn bên dưới.</p>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                New Password
+                Mật khẩu mới
               </label>
               <input
                 type="password"
@@ -96,13 +97,13 @@ export default function ResetPassword() {
                 required
                 minLength={8}
                 className="input-field"
-                placeholder="At least 8 characters"
+                placeholder="Tối thiểu 8 ký tự"
               />
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Confirm Password
+                Xác nhận mật khẩu
               </label>
               <input
                 type="password"
@@ -111,12 +112,12 @@ export default function ResetPassword() {
                 required
                 minLength={8}
                 className="input-field"
-                placeholder="Confirm your new password"
+                placeholder="Nhập lại mật khẩu mới"
               />
             </div>
 
             <button type="submit" disabled={loading} className="btn-primary w-full">
-              {loading ? 'Resetting...' : 'Reset Password'}
+              {loading ? 'Đang cập nhật...' : 'Cập nhật mật khẩu'}
             </button>
           </form>
         </div>

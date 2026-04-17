@@ -39,7 +39,7 @@ describe('sendSuccess', () => {
   it('uses default message', () => {
     const res = createMockRes();
     sendSuccess(res, 'data');
-    expect(res.body.message).toBe('Success');
+    expect(res.body.message).toBe('Thành công');
   });
 });
 

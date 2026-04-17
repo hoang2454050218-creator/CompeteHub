@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+﻿import { Link } from 'react-router-dom';
 import { Home, ArrowLeft } from 'lucide-react';
 
 export default function NotFound() {
@@ -7,10 +7,10 @@ export default function NotFound() {
       <div className="text-center max-w-md">
         <div className="text-8xl font-bold text-primary-600/20 mb-4">404</div>
         <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-3">
-          Page Not Found
+          Không tìm thấy trang
         </h1>
         <p className="text-gray-500 dark:text-gray-400 mb-8">
-          The page you're looking for doesn't exist or has been moved.
+          Trang bạn đang tìm không tồn tại hoặc đã được di chuyển.
         </p>
         <div className="flex items-center justify-center gap-3">
           <button
@@ -18,11 +18,11 @@ export default function NotFound() {
             className="btn-secondary gap-2"
           >
             <ArrowLeft className="h-4 w-4" />
-            Go Back
+            Quay lại
           </button>
           <Link to="/" className="btn-primary gap-2">
             <Home className="h-4 w-4" />
-            Home
+            Trang chủ
           </Link>
         </div>
       </div>

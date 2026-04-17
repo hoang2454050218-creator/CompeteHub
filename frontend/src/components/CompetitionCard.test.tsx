@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+﻿import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import CompetitionCard from './CompetitionCard';
 import { Competition } from '../types';
@@ -52,7 +52,7 @@ describe('CompetitionCard', () => {
 
   it('renders status badge', () => {
     renderCard();
-    expect(screen.getByText('ACTIVE')).toBeTruthy();
+    expect(screen.getByText('Đang diễn ra')).toBeTruthy();
   });
 
   it('renders prize', () => {
@@ -67,7 +67,7 @@ describe('CompetitionCard', () => {
 
   it('renders eval metric', () => {
     renderCard();
-    expect(screen.getByText('ACCURACY')).toBeTruthy();
+    expect(screen.getByText('Độ chính xác')).toBeTruthy();
   });
 
   it('links to competition detail page', () => {

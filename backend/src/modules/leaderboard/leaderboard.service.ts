@@ -11,7 +11,7 @@ export class LeaderboardService {
       where: { id: competitionId },
       select: { evalMetric: true },
     });
-    if (!competition) throw new AppError('Competition not found', 404);
+    if (!competition) throw new AppError('Không tìm thấy cuộc thi', 404);
     return LOWER_IS_BETTER.has(competition.evalMetric) ? 'asc' : 'desc';
   }
 
@@ -63,9 +63,9 @@ export class LeaderboardService {
   async getPrivateLeaderboard(competitionId: string, page = 1, limit = 50) {
     const cappedLimit = Math.min(Math.max(1, limit), 100);
     const competition = await prisma.competition.findUnique({ where: { id: competitionId } });
-    if (!competition) throw new AppError('Competition not found', 404);
+    if (!competition) throw new AppError('Không tìm thấy cuộc thi', 404);
     if (competition.status !== 'COMPLETED' && competition.status !== 'ARCHIVED') {
-      throw new AppError('Private leaderboard is only available after competition ends', 403);
+      throw new AppError('Bảng xếp hạng riêng chỉ khả dụng sau khi cuộc thi kết thúc', 403);
     }
 
     const sortDir = LOWER_IS_BETTER.has(competition.evalMetric) ? 'asc' : 'desc';
@@ -98,9 +98,9 @@ export class LeaderboardService {
 
   async getShakeup(competitionId: string, limit = 200) {
     const competition = await prisma.competition.findUnique({ where: { id: competitionId } });
-    if (!competition) throw new AppError('Competition not found', 404);
+    if (!competition) throw new AppError('Không tìm thấy cuộc thi', 404);
     if (competition.status !== 'COMPLETED' && competition.status !== 'ARCHIVED') {
-      throw new AppError('Shake-up analysis only available after competition ends', 403);
+      throw new AppError('Phân tích biến động thứ hạng chỉ khả dụng sau khi cuộc thi kết thúc', 403);
     }
 
     const cappedLimit = Math.min(Math.max(1, limit), 500);
@@ -137,10 +137,10 @@ export class LeaderboardService {
 
   async exportCsv(competitionId: string, userId: string, isAdmin = false) {
     const competition = await prisma.competition.findUnique({ where: { id: competitionId } });
-    if (!competition) throw new AppError('Competition not found', 404);
+    if (!competition) throw new AppError('Không tìm thấy cuộc thi', 404);
     // AUDIT-FIX M-09: admin bypass to match route-level authorization intent
     if (!isAdmin && competition.hostId !== userId && competition.status !== 'COMPLETED' && competition.status !== 'ARCHIVED') {
-      throw new AppError('Not authorized', 403);
+      throw new AppError('Bạn không có quyền thực hiện thao tác này', 403);
     }
 
     const showPrivate = competition.status === 'COMPLETED' || competition.status === 'ARCHIVED';
@@ -160,8 +160,8 @@ export class LeaderboardService {
     });
 
     const headers = showPrivate
-      ? ['Rank', 'User', 'Team', 'Public Score', 'Private Score', 'Submissions', 'Last Submission']
-      : ['Rank', 'User', 'Team', 'Public Score', 'Submissions', 'Last Submission'];
+      ? ['Hạng', 'Người dùng', 'Đội', 'Điểm công khai', 'Điểm riêng tư', 'Số lượt nộp', 'Lần nộp gần nhất']
+      : ['Hạng', 'Người dùng', 'Đội', 'Điểm công khai', 'Số lượt nộp', 'Lần nộp gần nhất'];
 
     const rows = entries.map((entry, idx) => {
       const base: (string | number)[] = [

@@ -12,9 +12,9 @@ export class DatasetService {
     const title = stripHtmlTags(rawTitle);
     const description = rawDescription ? stripHtmlTags(rawDescription) : undefined;
     const competition = await prisma.competition.findUnique({ where: { id: competitionId } });
-    if (!competition) throw new AppError('Competition not found', 404);
+    if (!competition) throw new AppError('Không tìm thấy cuộc thi', 404);
     if (competition.hostId !== userId) {
-      throw new AppError('Only the competition host can upload datasets', 403);
+      throw new AppError('Chỉ đơn vị tổ chức mới có thể tải bộ dữ liệu lên', 403);
     }
 
     const safeName = sanitizeFilename(file.originalname);
@@ -84,7 +84,7 @@ export class DatasetService {
       include: { competition: true },
     });
 
-    if (!dataset) throw new AppError('Dataset not found', 404);
+    if (!dataset) throw new AppError('Không tìm thấy bộ dữ liệu', 404);
 
     if (!dataset.isPublic) {
       const enrollment = await prisma.enrollment.findUnique({
@@ -92,7 +92,7 @@ export class DatasetService {
           userId_competitionId: { userId, competitionId: dataset.competitionId },
         },
       });
-      if (!enrollment) throw new AppError('You must be enrolled to download', 403);
+      if (!enrollment) throw new AppError('Bạn phải tham gia cuộc thi để tải dữ liệu', 403);
     }
 
     await prisma.dataset.update({
@@ -107,13 +107,13 @@ export class DatasetService {
   // AUDIT-FIX: Stream-based preview — only read first N lines, not entire file
   async preview(datasetId: string, userId: string, maxRows = 100) {
     const dataset = await prisma.dataset.findUnique({ where: { id: datasetId } });
-    if (!dataset) throw new AppError('Dataset not found', 404);
+    if (!dataset) throw new AppError('Không tìm thấy bộ dữ liệu', 404);
 
     if (!dataset.isPublic) {
       const enrollment = await prisma.enrollment.findUnique({
         where: { userId_competitionId: { userId, competitionId: dataset.competitionId } },
       });
-      if (!enrollment) throw new AppError('You must be enrolled to preview', 403);
+      if (!enrollment) throw new AppError('Bạn phải tham gia cuộc thi để xem trước dữ liệu', 403);
     }
 
     const stream = await storage.getObject(dataset.fileUrl);

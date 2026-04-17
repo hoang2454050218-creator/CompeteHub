@@ -7,7 +7,7 @@ const service = new DatasetService();
 export class DatasetController {
   async upload(req: Request, res: Response, next: NextFunction) {
     try {
-      if (!req.file) return next(new AppError('File is required', 400));
+      if (!req.file) return next(new AppError('Vui lòng chọn tệp để tải lên', 400));
       const dataset = await service.upload(
         req.params.id,
         req.user!.userId,
@@ -16,7 +16,7 @@ export class DatasetController {
         req.body.description,
         req.body.isPublic === 'true'
       );
-      sendSuccess(res, { ...dataset, fileSize: dataset.fileSize.toString() }, 'Dataset uploaded', 201);
+      sendSuccess(res, { ...dataset, fileSize: dataset.fileSize.toString() }, 'Tải bộ dữ liệu lên thành công', 201);
     } catch (error) {
       next(error);
     }
@@ -27,7 +27,7 @@ export class DatasetController {
       const page = parseInt(req.query.page as string) || 1;
       const limit = parseInt(req.query.limit as string) || 50;
       const result = await service.list(req.params.id, page, limit);
-      sendSuccess(res, result.data.map((d) => ({ ...d, fileSize: d.fileSize.toString() })), 'Success', 200, result.pagination);
+      sendSuccess(res, result.data.map((d) => ({ ...d, fileSize: d.fileSize.toString() })), 'Thành công', 200, result.pagination);
     } catch (error) {
       next(error);
     }

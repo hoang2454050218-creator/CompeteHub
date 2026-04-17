@@ -5,9 +5,9 @@ import { Prisma } from '@prisma/client';
 export class EnrollmentService {
   async enroll(userId: string, competitionId: string) {
     const competition = await prisma.competition.findUnique({ where: { id: competitionId } });
-    if (!competition) throw new AppError('Competition not found', 404);
+    if (!competition) throw new AppError('Không tìm thấy cuộc thi', 404);
     if (competition.status !== 'ACTIVE') {
-      throw new AppError('Competition is not active', 400);
+      throw new AppError('Cuộc thi chưa mở để tham gia', 400);
     }
 
     try {
@@ -19,7 +19,7 @@ export class EnrollmentService {
       });
     } catch (err) {
       if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
-        throw new AppError('Already enrolled', 409);
+        throw new AppError('Bạn đã tham gia cuộc thi này rồi', 409);
       }
       throw err;
     }
@@ -30,7 +30,7 @@ export class EnrollmentService {
       where: { userId_competitionId: { userId, competitionId } },
       include: { team: true },
     });
-    if (!enrollment) throw new AppError('Not enrolled', 404);
+    if (!enrollment) throw new AppError('Bạn chưa tham gia cuộc thi này', 404);
 
     // AUDIT-FIX L-01: Wrap in Serializable transaction so two concurrent unenrolls
     // of the last 2 team members can't both decide "not last" -> orphan team row,

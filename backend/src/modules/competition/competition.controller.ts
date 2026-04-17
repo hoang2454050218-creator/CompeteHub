@@ -8,7 +8,7 @@ export class CompetitionController {
   async create(req: Request, res: Response, next: NextFunction) {
     try {
       const competition = await service.create(req.user!.userId, req.body);
-      sendSuccess(res, competition, 'Competition created', 201);
+      sendSuccess(res, competition, 'Tạo cuộc thi thành công', 201);
     } catch (error) {
       next(error);
     }
@@ -17,7 +17,7 @@ export class CompetitionController {
   async list(req: Request, res: Response, next: NextFunction) {
     try {
       const result = await service.list(req.query as unknown as import('./competition.validator').ListCompetitionsQuery);
-      sendSuccess(res, result.data, 'Success', 200, result.pagination);
+      sendSuccess(res, result.data, 'Thành công', 200, result.pagination);
     } catch (error) {
       next(error);
     }
@@ -36,7 +36,7 @@ export class CompetitionController {
     try {
       const isAdmin = req.user!.role === 'ADMIN';
       const competition = await service.update(req.params.id, req.user!.userId, req.body, isAdmin);
-      sendSuccess(res, competition, 'Competition updated');
+      sendSuccess(res, competition, 'Cập nhật cuộc thi thành công');
     } catch (error) {
       next(error);
     }
@@ -46,7 +46,7 @@ export class CompetitionController {
     try {
       const isAdmin = req.user!.role === 'ADMIN';
       const competition = await service.updateStatus(req.params.id, req.body.status, req.user!.userId, isAdmin);
-      sendSuccess(res, competition, 'Status updated');
+      sendSuccess(res, competition, 'Cập nhật trạng thái thành công');
     } catch (error) {
       next(error);
     }
@@ -56,7 +56,7 @@ export class CompetitionController {
     try {
       const isAdmin = req.user!.role === 'ADMIN';
       await service.delete(req.params.id, req.user!.userId, isAdmin);
-      sendSuccess(res, null, 'Competition deleted');
+      sendSuccess(res, null, 'Xóa cuộc thi thành công');
     } catch (error) {
       next(error);
     }

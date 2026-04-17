@@ -20,19 +20,19 @@ export class SubmissionService {
   async submit(userId: string, competitionId: string, file: Express.Multer.File, rawDescription?: string) {
     const description = rawDescription ? stripHtmlTags(rawDescription) : undefined;
     const competition = await prisma.competition.findUnique({ where: { id: competitionId } });
-    if (!competition) throw new AppError('Competition not found', 404);
+    if (!competition) throw new AppError('Không tìm thấy cuộc thi', 404);
     if (competition.status !== 'ACTIVE') {
-      throw new AppError('Competition is not active', 400, 'COMPETITION_ENDED');
+      throw new AppError('Cuộc thi hiện không mở để nộp bài', 400, 'COMPETITION_ENDED');
     }
 
     if (file.size > competition.maxFileSize) {
       fs.unlink(file.path, () => {});
-      throw new AppError(`File too large. Max: ${Math.round(competition.maxFileSize / 1048576)}MB`, 413, 'FILE_TOO_LARGE');
+      throw new AppError(`Tệp vượt quá kích thước cho phép. Tối đa ${Math.round(competition.maxFileSize / 1048576)} MB`, 413, 'FILE_TOO_LARGE');
     }
 
     if (!validateCsvMagicBytes(file.path)) {
       fs.unlink(file.path, () => {});
-      throw new AppError('File does not appear to be a valid CSV', 400, 'INVALID_FILE_TYPE');
+      throw new AppError('Tệp không phải CSV hợp lệ', 400, 'INVALID_FILE_TYPE');
     }
 
     const fileHash = await computeFileHash(file.path);
@@ -42,7 +42,7 @@ export class SubmissionService {
     });
     if (!enrollment) {
       fs.unlink(file.path, () => {});
-      throw new AppError('You must be enrolled', 403, 'NOT_ENROLLED');
+      throw new AppError('Bạn phải tham gia cuộc thi trước', 403, 'NOT_ENROLLED');
     }
 
     const safeName = sanitizeFilename(file.originalname);
@@ -70,7 +70,7 @@ export class SubmissionService {
           },
         });
         if (duplicateSubmission) {
-          throw new AppError('This file has already been submitted', 409, 'DUPLICATE_SUBMISSION');
+          throw new AppError('Tệp này đã được nộp trước đó', 409, 'DUPLICATE_SUBMISSION');
         }
 
         const todayStart = new Date();
@@ -82,13 +82,13 @@ export class SubmissionService {
           where: { userId, competitionId, createdAt: { gte: todayStart, lt: todayEnd } },
         });
         if (dailyCount >= competition.maxDailySubs) {
-          throw new AppError(`Daily limit reached (${competition.maxDailySubs}). Try again tomorrow.`, 429, 'DAILY_LIMIT_EXCEEDED');
+          throw new AppError(`Bạn đã đạt giới hạn ${competition.maxDailySubs} lượt nộp trong ngày. Vui lòng thử lại vào ngày mai.`, 429, 'DAILY_LIMIT_EXCEEDED');
         }
 
         if (competition.maxTotalSubs) {
           const totalCount = await tx.submission.count({ where: { userId, competitionId } });
           if (totalCount >= competition.maxTotalSubs) {
-            throw new AppError('Total submission limit reached', 429, 'TOTAL_LIMIT_EXCEEDED');
+            throw new AppError('Bạn đã đạt giới hạn tổng số lượt nộp', 429, 'TOTAL_LIMIT_EXCEEDED');
           }
         }
 
@@ -110,7 +110,7 @@ export class SubmissionService {
       // AUDIT-FIX H-01: DB-level UNIQUE constraint catches race-condition duplicates
       // that slip past the in-transaction findFirst check
       if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
-        throw new AppError('This file has already been submitted', 409, 'DUPLICATE_SUBMISSION');
+        throw new AppError('Tệp này đã được nộp trước đó', 409, 'DUPLICATE_SUBMISSION');
       }
       throw err;
     }
@@ -158,9 +158,9 @@ export class SubmissionService {
 
   async selectSubmission(userId: string, submissionId: string) {
     const submission = await prisma.submission.findUnique({ where: { id: submissionId } });
-    if (!submission) throw new AppError('Submission not found', 404);
-    if (submission.userId !== userId) throw new AppError('Not authorized', 403);
-    if (submission.status !== 'SCORED') throw new AppError('Submission not scored yet', 400);
+    if (!submission) throw new AppError('Không tìm thấy bài nộp', 404);
+    if (submission.userId !== userId) throw new AppError('Bạn không có quyền thực hiện thao tác này', 403);
+    if (submission.status !== 'SCORED') throw new AppError('Bài nộp chưa được chấm điểm', 400);
 
     return prisma.$transaction(async (tx) => {
       await tx.submission.updateMany({

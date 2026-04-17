@@ -1,7 +1,8 @@
-import { Link } from 'react-router-dom';
-import { Users, Calendar, Trophy, Tag } from 'lucide-react';
+﻿import { Link } from 'react-router-dom';
+import { Users, Calendar, Tag } from 'lucide-react';
 import { Competition } from '../types';
 import { cn, formatDate } from '../utils/cn';
+import { getCompetitionStatusLabel, getEvaluationMetricLabel } from '../utils/displayText';
 
 interface Props {
   competition: Competition;
@@ -24,7 +25,7 @@ export default function CompetitionCard({ competition }: Props) {
         )}
         <div className="absolute top-3 left-3">
           <span className={cn('px-2 py-1 rounded-full text-xs font-medium', statusColors[competition.status])}>
-            {competition.status.replace('_', ' ')}
+            {getCompetitionStatusLabel(competition.status)}
           </span>
         </div>
         {competition.prize && (
@@ -65,7 +66,7 @@ export default function CompetitionCard({ competition }: Props) {
           </div>
           <div className="flex items-center gap-1">
             <Tag className="h-4 w-4" />
-            <span>{competition.evalMetric.replace('_', ' ')}</span>
+            <span>{getEvaluationMetricLabel(competition.evalMetric)}</span>
           </div>
           {competition.endDate && (
             <div className="flex items-center gap-1">

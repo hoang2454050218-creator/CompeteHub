@@ -126,12 +126,12 @@ export class CompetitionService {
       },
     });
 
-    if (!competition) throw new AppError('Competition not found', 404);
+    if (!competition) throw new AppError('Không tìm thấy cuộc thi', 404);
 
     const isDraftOrPending = competition.status === 'DRAFT' || competition.status === 'PENDING_REVIEW';
     const isOwnerOrAdmin = requestUserId && (competition.hostId === requestUserId || requestUserRole === 'ADMIN');
     if (isDraftOrPending && !isOwnerOrAdmin) {
-      throw new AppError('Competition not found', 404);
+      throw new AppError('Không tìm thấy cuộc thi', 404);
     }
 
     return competition;
@@ -146,16 +146,16 @@ export class CompetitionService {
       },
     });
 
-    if (!competition) throw new AppError('Competition not found', 404);
+    if (!competition) throw new AppError('Không tìm thấy cuộc thi', 404);
     return competition;
   }
 
   async update(id: string, hostId: string, rawInput: UpdateCompetitionInput, isAdmin = false) {
     const input = sanitizeCompetitionInput(rawInput);
     const competition = await prisma.competition.findUnique({ where: { id } });
-    if (!competition) throw new AppError('Competition not found', 404);
+    if (!competition) throw new AppError('Không tìm thấy cuộc thi', 404);
     if (!isAdmin && competition.hostId !== hostId) {
-      throw new AppError('Not authorized to update this competition', 403);
+      throw new AppError('Bạn không có quyền cập nhật cuộc thi này', 403);
     }
 
     // AUDIT-FIX: Prevent changing critical fields while competition is active
@@ -164,7 +164,7 @@ export class CompetitionService {
       for (const field of IMMUTABLE_WHEN_ACTIVE) {
         const newVal = input[field as keyof typeof input];
         if (newVal !== undefined && newVal !== (competition as Record<string, unknown>)[field]) {
-          throw new AppError(`Cannot change "${field}" after competition is active`, 400, 'IMMUTABLE_FIELD');
+          throw new AppError(`Không thể thay đổi "${field}" khi cuộc thi đã bắt đầu`, 400, 'IMMUTABLE_FIELD');
         }
       }
     }
@@ -187,7 +187,7 @@ export class CompetitionService {
 
   async updateStatus(id: string, status: CompetitionStatus, userId: string, isAdmin = false) {
     const competition = await prisma.competition.findUnique({ where: { id } });
-    if (!competition) throw new AppError('Competition not found', 404);
+    if (!competition) throw new AppError('Không tìm thấy cuộc thi', 404);
 
     const validTransitions: Record<CompetitionStatus, CompetitionStatus[]> = {
       DRAFT: ['PENDING_REVIEW'],
@@ -198,15 +198,15 @@ export class CompetitionService {
     };
 
     if (!validTransitions[competition.status]?.includes(status)) {
-      throw new AppError(`Cannot transition from ${competition.status} to ${status}`, 400);
+      throw new AppError(`Không thể chuyển trạng thái từ ${competition.status} sang ${status}`, 400);
     }
 
     if (!isAdmin && competition.hostId !== userId) {
-      throw new AppError('Not authorized to change this competition status', 403);
+      throw new AppError('Bạn không có quyền thay đổi trạng thái cuộc thi', 403);
     }
 
     if (['ACTIVE', 'DRAFT'].includes(status) && competition.status === 'PENDING_REVIEW' && !isAdmin) {
-      throw new AppError('Only admin can approve/reject competitions', 403);
+      throw new AppError('Chỉ quản trị viên mới có thể duyệt hoặc từ chối cuộc thi', 403);
     }
 
     return prisma.competition.update({
@@ -217,12 +217,12 @@ export class CompetitionService {
 
   async delete(id: string, hostId: string, isAdmin = false) {
     const competition = await prisma.competition.findUnique({ where: { id } });
-    if (!competition) throw new AppError('Competition not found', 404);
+    if (!competition) throw new AppError('Không tìm thấy cuộc thi', 404);
     if (!isAdmin && competition.hostId !== hostId) {
-      throw new AppError('Not authorized', 403);
+      throw new AppError('Bạn không có quyền thực hiện thao tác này', 403);
     }
     if (competition.status === 'ACTIVE') {
-      throw new AppError('Cannot delete an active competition', 400);
+      throw new AppError('Không thể xóa cuộc thi đang diễn ra', 400);
     }
 
     await prisma.competition.delete({ where: { id } });

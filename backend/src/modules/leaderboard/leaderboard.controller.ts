@@ -10,7 +10,7 @@ export class LeaderboardController {
       const page = parseInt(req.query.page as string) || 1;
       const limit = parseInt(req.query.limit as string) || 50;
       const result = await service.getPublicLeaderboard(req.params.id, page, limit);
-      sendSuccess(res, result.data, 'Success', 200, result.pagination);
+      sendSuccess(res, result.data, 'Thành công', 200, result.pagination);
     } catch (error) {
       next(error);
     }
@@ -21,7 +21,7 @@ export class LeaderboardController {
       const page = parseInt(req.query.page as string) || 1;
       const limit = parseInt(req.query.limit as string) || 50;
       const result = await service.getPrivateLeaderboard(req.params.id, page, limit);
-      sendSuccess(res, result.data, 'Success', 200, result.pagination);
+      sendSuccess(res, result.data, 'Thành công', 200, result.pagination);
     } catch (error) {
       next(error);
     }

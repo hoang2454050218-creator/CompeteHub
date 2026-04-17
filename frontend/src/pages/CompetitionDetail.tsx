@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -16,12 +16,18 @@ import { PageLoader } from '../components/LoadingSpinner';
 import { SectionErrorBoundary } from '../components/ErrorBoundary';
 import { cn, formatDate, formatFileSize, timeAgo } from '../utils/cn';
 import { joinCompetition, joinLeaderboard, leaveCompetition } from '../socket';
+import {
+  getApiErrorMessage,
+  getCompetitionCategoryLabel,
+  getEvaluationMetricLabel,
+  getSubmissionStatusLabel,
+} from '../utils/displayText';
 
 type Tab = 'overview' | 'data' | 'leaderboard' | 'submissions' | 'discussion' | 'rules';
 
 export default function CompetitionDetail() {
   const { slug } = useParams<{ slug: string }>();
-  const { user, isAuthenticated } = useAuthStore();
+  const { isAuthenticated } = useAuthStore();
   const queryClient = useQueryClient();
   const [tab, setTab] = useState<Tab>('overview');
 
@@ -41,9 +47,9 @@ export default function CompetitionDetail() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['enrollment', competition!.id] });
       queryClient.invalidateQueries({ queryKey: ['competition', slug] });
-      toast.success('Enrolled successfully!');
+      toast.success('Tham gia cuộc thi thành công.');
     },
-    onError: (err: any) => toast.error(err.response?.data?.message || 'Failed to enroll'),
+    onError: (err: unknown) => toast.error(getApiErrorMessage(err, 'Không thể tham gia cuộc thi.')),
   });
 
   // AUDIT-FIX: Clean up socket rooms on unmount
@@ -64,21 +70,21 @@ export default function CompetitionDetail() {
     <div className="max-w-3xl mx-auto px-4 py-16 text-center">
       <div className="card p-12">
         <Trophy className="h-12 w-12 mx-auto text-red-400 mb-4" />
-        <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Failed to load competition</h2>
-        <p className="text-gray-500 mb-4">Please check the URL or try again later.</p>
-        <a href="/competitions" className="btn-primary">Browse Competitions</a>
+        <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Không thể tải thông tin cuộc thi</h2>
+        <p className="text-gray-500 mb-4">Vui lòng kiểm tra lại đường dẫn hoặc thử lại sau.</p>
+        <a href="/competitions" className="btn-primary">Xem danh sách cuộc thi</a>
       </div>
     </div>
   );
-  if (!competition) return <div className="text-center py-20">Competition not found</div>;
+  if (!competition) return <div className="text-center py-20">Không tìm thấy cuộc thi</div>;
 
   const tabs: { id: Tab; label: string; icon: React.ElementType }[] = [
-    { id: 'overview', label: 'Overview', icon: FileText },
-    { id: 'data', label: 'Data', icon: Download },
-    { id: 'leaderboard', label: 'Leaderboard', icon: BarChart3 },
-    { id: 'submissions', label: 'Submissions', icon: Upload },
-    { id: 'discussion', label: 'Discussion', icon: MessageSquare },
-    { id: 'rules', label: 'Rules', icon: FileText },
+    { id: 'overview', label: 'Tổng quan', icon: FileText },
+    { id: 'data', label: 'Dữ liệu', icon: Download },
+    { id: 'leaderboard', label: 'Bảng xếp hạng', icon: BarChart3 },
+    { id: 'submissions', label: 'Bài nộp', icon: Upload },
+    { id: 'discussion', label: 'Thảo luận', icon: MessageSquare },
+    { id: 'rules', label: 'Thể lệ', icon: FileText },
   ];
 
   return (
@@ -88,15 +94,15 @@ export default function CompetitionDetail() {
           <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6">
             <div>
               <div className="flex items-center gap-2 mb-3 text-primary-200 text-sm">
-                <Link to="/competitions" className="hover:text-white">Competitions</Link>
+                <Link to="/competitions" className="hover:text-white">Cuộc thi</Link>
                 <ChevronRight className="h-4 w-4" />
-                <span>{competition.category.replace('_', ' ')}</span>
+                <span>{getCompetitionCategoryLabel(competition.category)}</span>
               </div>
               <h1 className="text-3xl sm:text-4xl font-bold mb-3">{competition.title}</h1>
               <div className="flex flex-wrap items-center gap-4 text-primary-200">
-                <span className="flex items-center gap-1"><Users className="h-4 w-4" />{competition._count?.enrollments || 0} participants</span>
-                <span className="flex items-center gap-1"><BarChart3 className="h-4 w-4" />{competition.evalMetric.replace('_', ' ')}</span>
-                {competition.endDate && <span className="flex items-center gap-1"><Calendar className="h-4 w-4" />Ends {formatDate(competition.endDate)}</span>}
+                <span className="flex items-center gap-1"><Users className="h-4 w-4" />{competition._count?.enrollments || 0} người tham gia</span>
+                <span className="flex items-center gap-1"><BarChart3 className="h-4 w-4" />{getEvaluationMetricLabel(competition.evalMetric)}</span>
+                {competition.endDate && <span className="flex items-center gap-1"><Calendar className="h-4 w-4" />Kết thúc {formatDate(competition.endDate)}</span>}
                 {competition.prize && <span className="flex items-center gap-1"><Trophy className="h-4 w-4" />{competition.prize}</span>}
               </div>
             </div>
@@ -104,11 +110,11 @@ export default function CompetitionDetail() {
             <div className="flex gap-3">
               {isAuthenticated && !enrolled && competition.status === 'ACTIVE' && (
                 <button onClick={() => enrollMutation.mutate()} disabled={enrollMutation.isPending} className="px-6 py-3 bg-white text-primary-700 font-semibold rounded-lg hover:bg-primary-50 transition-colors">
-                  {enrollMutation.isPending ? 'Joining...' : 'Join Competition'}
+                  {enrollMutation.isPending ? 'Đang tham gia...' : 'Tham gia cuộc thi'}
                 </button>
               )}
               {enrolled && (
-                <span className="px-4 py-2 bg-green-500/20 text-green-100 rounded-lg font-medium border border-green-400/30">Enrolled</span>
+                <span className="px-4 py-2 bg-green-500/20 text-green-100 rounded-lg font-medium border border-green-400/30">Đã tham gia</span>
               )}
             </div>
           </div>
@@ -154,7 +160,7 @@ function OverviewTab({ competition }: { competition: Competition }) {
   return (
     <div className="prose prose-lg max-w-none dark:prose-invert">
       <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]}>
-        {competition.description || 'No description provided.'}
+        {competition.description || 'Chưa có mô tả.'}
       </ReactMarkdown>
     </div>
   );
@@ -170,8 +176,8 @@ function DataTab({ competitionId, enrolled }: { competitionId: string; enrolled:
     try {
       const res = await api.get(`/competitions/${competitionId}/datasets/${datasetId}/download`);
       window.open(res.data.data.url, '_blank', 'noopener,noreferrer');
-    } catch (err: any) {
-      toast.error(err.response?.data?.message || 'Download failed');
+    } catch (err: unknown) {
+      toast.error(getApiErrorMessage(err, 'Tải xuống thất bại.'));
     }
   };
 
@@ -182,21 +188,21 @@ function DataTab({ competitionId, enrolled }: { competitionId: string; enrolled:
           <div>
             <h3 className="font-semibold text-gray-900 dark:text-white">{ds.title}</h3>
             <p className="text-sm text-gray-500 mt-1">
-              v{ds.version} &middot; {formatFileSize(ds.fileSize)} &middot; {ds.downloadCount} downloads
+              v{ds.version} &middot; {formatFileSize(ds.fileSize)} &middot; {ds.downloadCount} lượt tải
             </p>
             {ds.description && <p className="text-sm text-gray-600 mt-1">{ds.description}</p>}
           </div>
           <div className="flex gap-2">
             {enrolled && (
               <button onClick={() => handleDownload(ds.id)} className="btn-primary text-sm">
-                <Download className="h-4 w-4 mr-1" /> Download
+                <Download className="h-4 w-4 mr-1" /> Tải xuống
               </button>
             )}
           </div>
         </div>
       ))}
       {(!datasets || datasets.length === 0) && (
-        <div className="card p-8 text-center text-gray-500">No datasets uploaded yet.</div>
+        <div className="card p-8 text-center text-gray-500">Chưa có bộ dữ liệu nào được tải lên.</div>
       )}
     </div>
   );
@@ -224,8 +230,8 @@ function LeaderboardTab({ competitionId, status }: { competitionId: string; stat
     <div>
       {showPrivate && (
         <div className="flex gap-2 mb-4">
-          <button onClick={() => { setBoard('public'); setPage(1); }} className={cn('btn-secondary text-sm', board === 'public' && 'bg-primary-50 border-primary-300 text-primary-700')}>Public</button>
-          <button onClick={() => { setBoard('private'); setPage(1); }} className={cn('btn-secondary text-sm', board === 'private' && 'bg-primary-50 border-primary-300 text-primary-700')}>Private</button>
+          <button onClick={() => { setBoard('public'); setPage(1); }} className={cn('btn-secondary text-sm', board === 'public' && 'bg-primary-50 border-primary-300 text-primary-700')}>Công khai</button>
+          <button onClick={() => { setBoard('private'); setPage(1); }} className={cn('btn-secondary text-sm', board === 'private' && 'bg-primary-50 border-primary-300 text-primary-700')}>Riêng tư</button>
         </div>
       )}
 
@@ -234,10 +240,10 @@ function LeaderboardTab({ competitionId, status }: { competitionId: string; stat
           <thead className="bg-gray-50 dark:bg-gray-800">
             <tr>
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">#</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Team / User</th>
-              <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase">Score</th>
-              <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase">Entries</th>
-              <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase">Last</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Đội / Người dùng</th>
+              <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase">Điểm</th>
+              <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase">Lượt nộp</th>
+              <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase">Gần nhất</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 dark:divide-dark-border">
@@ -261,7 +267,7 @@ function LeaderboardTab({ competitionId, status }: { competitionId: string; stat
                         {entry.user.name[0]}
                       </div>
                       <div>
-                        <div className="font-medium text-gray-900 dark:text-white">{entry.team?.name || entry.user.name}{isMe && ' (you)'}</div>
+                        <div className="font-medium text-gray-900 dark:text-white">{entry.team?.name || entry.user.name}{isMe && ' (bạn)'}</div>
                         {entry.team && <div className="text-xs text-gray-500">{entry.user.name}</div>}
                       </div>
                     </div>
@@ -279,19 +285,19 @@ function LeaderboardTab({ competitionId, status }: { competitionId: string; stat
           </tbody>
         </table>
         {entries.length === 0 && (
-          <div className="p-8 text-center text-gray-500">No submissions yet.</div>
+          <div className="p-8 text-center text-gray-500">Chưa có bài nộp nào.</div>
         )}
       </div>
 
       {pagination && pagination.totalPages > 1 && (
         <div className="flex items-center justify-between mt-4">
-          <p className="text-sm text-gray-500">{pagination.total} participants</p>
+          <p className="text-sm text-gray-500">{pagination.total} người tham gia</p>
           <div className="flex gap-2">
-            <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1} className="btn-secondary text-sm">Previous</button>
+            <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1} className="btn-secondary text-sm">Trước</button>
             <span className="flex items-center px-3 text-sm text-gray-600 dark:text-gray-400">
-              Page {page} of {pagination.totalPages}
+              Trang {page} / {pagination.totalPages}
             </span>
-            <button onClick={() => setPage((p) => Math.min(pagination.totalPages, p + 1))} disabled={page === pagination.totalPages} className="btn-secondary text-sm">Next</button>
+            <button onClick={() => setPage((p) => Math.min(pagination.totalPages, p + 1))} disabled={page === pagination.totalPages} className="btn-secondary text-sm">Sau</button>
           </div>
         </div>
       )}
@@ -330,11 +336,11 @@ function SubmissionsTab({ competitionId, enrolled }: { competitionId: string; en
       setFile(null);
       setDesc('');
       setUploadProgress(0);
-      toast.success('Submission uploaded! Scoring in progress...');
+      toast.success('Đã tải bài nộp lên. Hệ thống đang chấm điểm...');
     },
-    onError: (err: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+    onError: (err: unknown) => {
       setUploadProgress(0);
-      toast.error(err.response?.data?.message || 'Submission failed');
+      toast.error(getApiErrorMessage(err, 'Nộp bài thất bại.'));
     },
   });
 
@@ -342,13 +348,13 @@ function SubmissionsTab({ competitionId, enrolled }: { competitionId: string; en
     mutationFn: (submissionId: string) => api.patch(`/competitions/${competitionId}/submissions/${submissionId}/select`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['submissions', competitionId] });
-      toast.success('Submission selected for private leaderboard');
+      toast.success('Đã chọn bài nộp cho bảng xếp hạng riêng.');
     },
-    onError: (err: any) => toast.error(err.response?.data?.message || 'Failed to select'), // eslint-disable-line @typescript-eslint/no-explicit-any
+    onError: (err: unknown) => toast.error(getApiErrorMessage(err, 'Không thể chọn bài nộp.')),
   });
 
   if (!enrolled) {
-    return <div className="card p-8 text-center text-gray-500">Join the competition to submit.</div>;
+    return <div className="card p-8 text-center text-gray-500">Hãy tham gia cuộc thi để nộp bài.</div>;
   }
 
   const statusColors: Record<string, string> = {
@@ -361,10 +367,10 @@ function SubmissionsTab({ competitionId, enrolled }: { competitionId: string; en
   return (
     <div className="space-y-6">
       <div className="card p-6">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Submit Prediction</h3>
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Nộp tệp dự đoán</h3>
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">CSV File</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tệp CSV</label>
             <div
               className="border-2 border-dashed border-gray-300 dark:border-dark-border rounded-lg p-6 text-center cursor-pointer hover:border-primary-400 transition-colors"
               onDragOver={(e) => e.preventDefault()}
@@ -372,39 +378,39 @@ function SubmissionsTab({ competitionId, enrolled }: { competitionId: string; en
               onClick={() => document.getElementById('csv-upload')?.click()}
             >
               <Upload className="h-8 w-8 mx-auto text-gray-400 mb-2" />
-              <p className="text-sm text-gray-500">{file ? file.name : 'Drag & drop your CSV file, or click to browse'}</p>
+              <p className="text-sm text-gray-500">{file ? file.name : 'Kéo thả tệp CSV vào đây hoặc bấm để chọn tệp'}</p>
               {file && <p className="text-xs text-gray-400 mt-1">{(file.size / 1024 / 1024).toFixed(2)} MB</p>}
               <input id="csv-upload" type="file" accept=".csv" onChange={(e) => setFile(e.target.files?.[0] || null)} className="hidden" />
             </div>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description (optional)</label>
-            <input type="text" value={desc} onChange={(e) => setDesc(e.target.value)} className="input-field" placeholder="e.g., XGBoost v3 tuned" />
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Mô tả (không bắt buộc)</label>
+            <input type="text" value={desc} onChange={(e) => setDesc(e.target.value)} className="input-field" placeholder="VD: XGBoost v3 đã tinh chỉnh" />
           </div>
           {submitMutation.isPending && uploadProgress > 0 && (
             <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
               <div className="bg-primary-600 h-2.5 rounded-full transition-all duration-300" style={{ width: `${uploadProgress}%` }} />
-              <p className="text-xs text-gray-500 mt-1">{uploadProgress}% uploaded</p>
+              <p className="text-xs text-gray-500 mt-1">Đã tải lên {uploadProgress}%</p>
             </div>
           )}
           <button onClick={() => submitMutation.mutate()} disabled={!file || submitMutation.isPending} className="btn-primary">
-            {submitMutation.isPending ? `Uploading${uploadProgress > 0 ? ` (${uploadProgress}%)` : ''}...` : 'Submit'}
+            {submitMutation.isPending ? `Đang tải lên${uploadProgress > 0 ? ` (${uploadProgress}%)` : ''}...` : 'Nộp bài'}
           </button>
         </div>
       </div>
 
       <div className="card overflow-hidden">
         <div className="px-5 py-3 border-b border-gray-100 dark:border-dark-border">
-          <h3 className="font-semibold text-gray-900 dark:text-white">My Submissions</h3>
+          <h3 className="font-semibold text-gray-900 dark:text-white">Bài nộp của tôi</h3>
         </div>
         <table className="w-full">
           <thead className="bg-gray-50 dark:bg-gray-800">
             <tr>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">File</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Status</th>
-              <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase">Public Score</th>
-              <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase">Submitted</th>
-              <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase">Selected</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Tệp</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Trạng thái</th>
+              <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase">Điểm công khai</th>
+              <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase">Đã nộp</th>
+              <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase">Được chọn</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 dark:divide-dark-border">
@@ -416,7 +422,7 @@ function SubmissionsTab({ competitionId, enrolled }: { competitionId: string; en
                 </td>
                 <td className="px-4 py-3">
                   <span className={cn('px-2 py-1 rounded-full text-xs font-medium', statusColors[sub.status])}>
-                    {sub.status}
+                    {getSubmissionStatusLabel(sub.status)}
                   </span>
                 </td>
                 <td className="px-4 py-3 text-right font-mono text-sm">{sub.publicScore?.toFixed(5) ?? '-'}</td>
@@ -424,14 +430,14 @@ function SubmissionsTab({ competitionId, enrolled }: { competitionId: string; en
                 <td className="px-4 py-3 text-center">
                   {sub.status === 'SCORED' && (
                     sub.isSelected ? (
-                      <span className="text-xs font-medium text-green-600 dark:text-green-400">Selected</span>
+                      <span className="text-xs font-medium text-green-600 dark:text-green-400">Đã chọn</span>
                     ) : (
                       <button
                         onClick={() => selectMutation.mutate(sub.id)}
                         disabled={selectMutation.isPending}
                         className="text-xs text-primary-600 hover:text-primary-700 font-medium"
                       >
-                        Select
+                        Chọn
                       </button>
                     )
                   )}
@@ -441,7 +447,7 @@ function SubmissionsTab({ competitionId, enrolled }: { competitionId: string; en
           </tbody>
         </table>
         {(!submissions || submissions.length === 0) && (
-          <div className="p-8 text-center text-gray-500">No submissions yet.</div>
+          <div className="p-8 text-center text-gray-500">Chưa có bài nộp nào.</div>
         )}
       </div>
     </div>
@@ -466,26 +472,26 @@ function DiscussionTab({ competitionId, enrolled }: { competitionId: string; enr
       setTitle('');
       setContent('');
       setShowForm(false);
-      toast.success('Topic created!');
+      toast.success('Đã tạo chủ đề mới.');
     },
-    onError: (err: any) => toast.error(err.response?.data?.message || 'Failed'),
+    onError: (err: unknown) => toast.error(getApiErrorMessage(err, 'Không thể tạo chủ đề mới.')),
   });
 
   return (
     <div className="space-y-4">
       {enrolled && (
         <div className="flex justify-end">
-          <button onClick={() => setShowForm(!showForm)} className="btn-primary text-sm">New Topic</button>
+          <button onClick={() => setShowForm(!showForm)} className="btn-primary text-sm">Chủ đề mới</button>
         </div>
       )}
 
       {showForm && (
         <div className="card p-5 space-y-3">
-          <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} className="input-field" placeholder="Topic title" />
-          <textarea value={content} onChange={(e) => setContent(e.target.value)} className="input-field min-h-[120px]" placeholder="Write your post (Markdown supported)" />
+          <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} className="input-field" placeholder="Tiêu đề chủ đề" />
+          <textarea value={content} onChange={(e) => setContent(e.target.value)} className="input-field min-h-[120px]" placeholder="Viết nội dung bài đăng (hỗ trợ Markdown)" />
           <div className="flex gap-2">
-            <button onClick={() => createMutation.mutate()} disabled={!title || !content || createMutation.isPending} className="btn-primary text-sm">{createMutation.isPending ? 'Posting...' : 'Post'}</button>
-            <button onClick={() => setShowForm(false)} className="btn-secondary text-sm">Cancel</button>
+            <button onClick={() => createMutation.mutate()} disabled={!title || !content || createMutation.isPending} className="btn-primary text-sm">{createMutation.isPending ? 'Đang đăng...' : 'Đăng bài'}</button>
+            <button onClick={() => setShowForm(false)} className="btn-secondary text-sm">Hủy</button>
           </div>
         </div>
       )}
@@ -495,21 +501,21 @@ function DiscussionTab({ competitionId, enrolled }: { competitionId: string; enr
           <div className="flex items-start justify-between">
             <div>
               <div className="flex items-center gap-2">
-                {disc.isPinned && <span className="px-2 py-0.5 rounded bg-yellow-100 text-yellow-700 text-xs font-medium">Pinned</span>}
+                {disc.isPinned && <span className="px-2 py-0.5 rounded bg-yellow-100 text-yellow-700 text-xs font-medium">Ghim</span>}
                 <h3 className="font-semibold text-gray-900 dark:text-white">{disc.title}</h3>
               </div>
               <div className="flex items-center gap-3 mt-1 text-sm text-gray-500">
                 <span>{disc.author.name}</span>
                 <span>{timeAgo(disc.createdAt)}</span>
-                <span>{disc._count?.replies || disc.replyCount} replies</span>
-                <span>{disc.upvoteCount} votes</span>
+                <span>{disc._count?.replies || disc.replyCount} phản hồi</span>
+                <span>{disc.upvoteCount} lượt bình chọn</span>
               </div>
             </div>
           </div>
         </div>
       ))}
       {(!discussions || discussions.length === 0) && (
-        <div className="card p-8 text-center text-gray-500">No discussions yet. Start one!</div>
+        <div className="card p-8 text-center text-gray-500">Chưa có thảo luận nào. Hãy bắt đầu chủ đề đầu tiên.</div>
       )}
     </div>
   );
@@ -519,19 +525,19 @@ function RulesTab({ competition }: { competition: Competition }) {
   return (
     <div className="prose prose-lg max-w-none dark:prose-invert">
       <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]}>
-        {competition.rules || 'No rules specified.'}
+        {competition.rules || 'Chưa có thể lệ.'}
       </ReactMarkdown>
 
       <div className="not-prose mt-8 card p-6">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Competition Settings</h3>
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Thiết lập cuộc thi</h3>
         <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div><dt className="text-sm text-gray-500">Evaluation Metric</dt><dd className="font-medium">{competition.evalMetric.replace('_', ' ')}</dd></div>
-          <div><dt className="text-sm text-gray-500">Public/Private Split</dt><dd className="font-medium">{Math.round(competition.pubPrivSplit * 100)}% / {Math.round((1 - competition.pubPrivSplit) * 100)}%</dd></div>
-          <div><dt className="text-sm text-gray-500">Max Daily Submissions</dt><dd className="font-medium">{competition.maxDailySubs}</dd></div>
-          <div><dt className="text-sm text-gray-500">Max Team Size</dt><dd className="font-medium">{competition.maxTeamSize}</dd></div>
-          <div><dt className="text-sm text-gray-500">Max File Size</dt><dd className="font-medium">{formatFileSize(competition.maxFileSize)}</dd></div>
-          {competition.startDate && <div><dt className="text-sm text-gray-500">Start Date</dt><dd className="font-medium">{formatDate(competition.startDate)}</dd></div>}
-          {competition.endDate && <div><dt className="text-sm text-gray-500">End Date</dt><dd className="font-medium">{formatDate(competition.endDate)}</dd></div>}
+          <div><dt className="text-sm text-gray-500">Chỉ số đánh giá</dt><dd className="font-medium">{getEvaluationMetricLabel(competition.evalMetric)}</dd></div>
+          <div><dt className="text-sm text-gray-500">Tỷ lệ công khai/riêng tư</dt><dd className="font-medium">{Math.round(competition.pubPrivSplit * 100)}% / {Math.round((1 - competition.pubPrivSplit) * 100)}%</dd></div>
+          <div><dt className="text-sm text-gray-500">Số lượt nộp tối đa mỗi ngày</dt><dd className="font-medium">{competition.maxDailySubs}</dd></div>
+          <div><dt className="text-sm text-gray-500">Số thành viên đội tối đa</dt><dd className="font-medium">{competition.maxTeamSize}</dd></div>
+          <div><dt className="text-sm text-gray-500">Kích thước tệp tối đa</dt><dd className="font-medium">{formatFileSize(competition.maxFileSize)}</dd></div>
+          {competition.startDate && <div><dt className="text-sm text-gray-500">Ngày bắt đầu</dt><dd className="font-medium">{formatDate(competition.startDate)}</dd></div>}
+          {competition.endDate && <div><dt className="text-sm text-gray-500">Ngày kết thúc</dt><dd className="font-medium">{formatDate(competition.endDate)}</dd></div>}
         </dl>
       </div>
     </div>

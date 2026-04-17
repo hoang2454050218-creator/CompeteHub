@@ -44,7 +44,7 @@ export function initSocket(httpServer: HttpServer) {
 
   io.use((socket, next) => {
     const token = socket.handshake.auth.token;
-    if (!token) return next(new Error('Authentication required'));
+    if (!token) return next(new Error('Yêu cầu đăng nhập'));
 
     try {
       const decoded = verifyAccessToken(token);
@@ -52,7 +52,7 @@ export function initSocket(httpServer: HttpServer) {
       socket.data.role = decoded.role;
       next();
     } catch {
-      next(new Error('Invalid token'));
+      next(new Error('Token không hợp lệ'));
     }
   });
 
@@ -76,7 +76,7 @@ export function initSocket(httpServer: HttpServer) {
         }
       } catch (err) {
         logger.error({ err, userId, competitionId }, 'Error joining competition room');
-        socket.emit('error', { message: 'Failed to join competition' });
+        socket.emit('error', { message: 'Không thể tham gia phòng cuộc thi' });
       }
     });
 
@@ -100,7 +100,7 @@ export function initSocket(httpServer: HttpServer) {
         }
       } catch (err) {
         logger.error({ err, userId, competitionId }, 'Error joining leaderboard room');
-        socket.emit('error', { message: 'Failed to join leaderboard' });
+        socket.emit('error', { message: 'Không thể tham gia phòng bảng xếp hạng' });
       }
     });
 

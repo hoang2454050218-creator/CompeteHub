@@ -18,7 +18,7 @@ export class AuthService {
   async register(input: RegisterInput) {
     const existing = await prisma.user.findUnique({ where: { email: input.email } });
     if (existing) {
-      throw new AppError('Email already in use', 409, 'EMAIL_EXISTS');
+      throw new AppError('Email đã được sử dụng', 409, 'EMAIL_EXISTS');
     }
 
     const passwordHash = await bcrypt.hash(input.password, config.auth.bcryptRounds);
@@ -37,16 +37,16 @@ export class AuthService {
   async login(input: LoginInput) {
     const user = await prisma.user.findUnique({ where: { email: input.email } });
     if (!user || !user.passwordHash) {
-      throw new AppError('Invalid email or password', 401, 'INVALID_CREDENTIALS');
+      throw new AppError('Email hoặc mật khẩu không chính xác', 401, 'INVALID_CREDENTIALS');
     }
 
     if (!user.isActive) {
-      throw new AppError('Account is deactivated', 403, 'ACCOUNT_DEACTIVATED');
+      throw new AppError('Tài khoản đã bị vô hiệu hóa', 403, 'ACCOUNT_DEACTIVATED');
     }
 
     if (user.lockedUntil && user.lockedUntil > new Date()) {
       const minutesLeft = Math.ceil((user.lockedUntil.getTime() - Date.now()) / 60000);
-      throw new AppError(`Account locked. Try again in ${minutesLeft} minutes`, 429, 'ACCOUNT_LOCKED');
+      throw new AppError(`Tài khoản đã bị khóa. Vui lòng thử lại sau ${minutesLeft} phút`, 429, 'ACCOUNT_LOCKED');
     }
 
     const valid = await bcrypt.compare(input.password, user.passwordHash);
@@ -60,7 +60,7 @@ export class AuthService {
       }
 
       await prisma.user.update({ where: { id: user.id }, data: updateData });
-      throw new AppError('Invalid email or password', 401, 'INVALID_CREDENTIALS');
+      throw new AppError('Email hoặc mật khẩu không chính xác', 401, 'INVALID_CREDENTIALS');
     }
 
     await prisma.user.update({
@@ -87,7 +87,7 @@ export class AuthService {
       const user = await prisma.user.findUnique({ where: { id: decoded.userId } });
 
       if (!user) {
-        throw new AppError('Invalid refresh token', 401, 'INVALID_TOKEN');
+        throw new AppError('Refresh token không hợp lệ', 401, 'INVALID_TOKEN');
       }
 
       if (user.refreshToken !== hashToken(refreshToken)) {
@@ -95,7 +95,7 @@ export class AuthService {
           where: { id: user.id },
           data: { refreshToken: null },
         });
-        throw new AppError('Token reuse detected — all sessions revoked', 401, 'TOKEN_REUSE');
+        throw new AppError('Phát hiện token bị tái sử dụng. Tất cả phiên đăng nhập đã bị thu hồi', 401, 'TOKEN_REUSE');
       }
 
       const tokens = this.generateTokens(user.id, user.role);
@@ -108,7 +108,7 @@ export class AuthService {
       return tokens;
     } catch (error) {
       if (error instanceof AppError) throw error;
-      throw new AppError('Invalid refresh token', 401, 'INVALID_TOKEN');
+      throw new AppError('Refresh token không hợp lệ', 401, 'INVALID_TOKEN');
     }
   }
 
@@ -141,7 +141,7 @@ export class AuthService {
     });
 
     if (!user) {
-      throw new AppError('Invalid or expired reset token', 400, 'INVALID_TOKEN');
+      throw new AppError('Token đặt lại mật khẩu không hợp lệ hoặc đã hết hạn', 400, 'INVALID_TOKEN');
     }
 
     const passwordHash = await bcrypt.hash(newPassword, config.auth.bcryptRounds);
@@ -176,7 +176,7 @@ export class AuthService {
       },
     });
 
-    if (!user) throw new AppError('User not found', 404);
+    if (!user) throw new AppError('Không tìm thấy người dùng', 404);
     return user;
   }
 
@@ -196,7 +196,7 @@ export class AuthService {
         (profile.githubId && !user.githubId);
       if (isNewOAuthProvider && user.passwordHash && !user.googleId && !user.githubId) {
         throw new AppError(
-          'An account with this email exists. Please log in with your password first, then link your OAuth provider from settings.',
+          'Tài khoản với email này đã tồn tại. Vui lòng đăng nhập bằng mật khẩu trước, sau đó liên kết tài khoản OAuth trong phần cài đặt.',
           409,
           'ACCOUNT_EXISTS'
         );

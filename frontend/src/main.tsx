@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider, MutationCache } from '@tanstack/react-query';
@@ -6,6 +6,7 @@ import toast, { Toaster } from 'react-hot-toast';
 import * as Sentry from '@sentry/react';
 import ErrorBoundary from './components/ErrorBoundary';
 import App from './App';
+import { getApiErrorMessage } from './utils/displayText';
 import './index.css';
 
 if (import.meta.env.VITE_SENTRY_DSN) {
@@ -28,9 +29,7 @@ const queryClient = new QueryClient({
   mutationCache: new MutationCache({
     onError: (error, _variables, _context, mutation) => {
       if (mutation.options.onError) return;
-      const message =
-        (error as any)?.response?.data?.message || 'An unexpected error occurred';
-      toast.error(message);
+      toast.error(getApiErrorMessage(error, 'Đã xảy ra lỗi ngoài dự kiến.'));
     },
   }),
 });

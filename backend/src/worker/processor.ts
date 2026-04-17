@@ -13,7 +13,7 @@ const bucket = config.minio.bucket;
 async function parseCsvStream(objectName: string): Promise<Record<string, string>[]> {
   const stat = await minioClient.statObject(bucket, objectName);
   if (stat.size > MAX_FILE_SIZE) {
-    throw new Error(`File too large: ${stat.size} bytes (max ${MAX_FILE_SIZE})`);
+    throw new Error(`Tệp vượt quá kích thước cho phép: ${stat.size} byte (tối đa ${MAX_FILE_SIZE})`);
   }
 
   const stream = await minioClient.getObject(bucket, objectName);
@@ -28,7 +28,7 @@ async function parseCsvStream(objectName: string): Promise<Record<string, string
 
     parser.on('data', (record: Record<string, string>) => {
       if (records.length >= MAX_CSV_ROWS) {
-        parser.destroy(new Error(`CSV exceeds maximum row limit of ${MAX_CSV_ROWS}`));
+        parser.destroy(new Error(`Tệp CSV vượt quá giới hạn tối đa ${MAX_CSV_ROWS} dòng`));
         return;
       }
       records.push(record);
@@ -86,7 +86,7 @@ function detectIdColumn(headers: string[]): string | undefined {
 
 function detectTargetColumn(headers: string[]): string {
   const col = headers.find((k) => !/^id$/i.test(k));
-  if (!col) throw new Error('Cannot determine target column from ground truth');
+  if (!col) throw new Error('Không thể xác định cột mục tiêu từ dữ liệu đáp án');
   return col;
 }
 
@@ -101,29 +101,29 @@ export async function processScoring(job: ScoringJob) {
   try {
     const competition = await prisma.competition.findUnique({ where: { id: competitionId } });
     if (!competition || !competition.groundTruthUrl) {
-      throw new Error('Competition or ground truth not found');
+      throw new Error('Không tìm thấy cuộc thi hoặc dữ liệu đáp án');
     }
 
     const submission = await prisma.submission.findUnique({ where: { id: submissionId } });
-    if (!submission) throw new Error('Submission not found');
+    if (!submission) throw new Error('Không tìm thấy bài nộp');
 
     const [submissionData, truthData] = await Promise.all([
       parseCsvStream(submission.fileUrl),
       parseCsvStream(competition.groundTruthUrl),
     ]);
 
-    if (truthData.length === 0) throw new Error('Ground truth file is empty');
-    if (submissionData.length === 0) throw new Error('Submission file is empty');
+    if (truthData.length === 0) throw new Error('Tệp đáp án đang trống');
+    if (submissionData.length === 0) throw new Error('Tệp bài nộp đang trống');
 
     if (submissionData.length !== truthData.length) {
-      throw new Error(`Row count mismatch: expected ${truthData.length}, got ${submissionData.length}`);
+      throw new Error(`Số dòng không khớp: cần ${truthData.length}, nhận được ${submissionData.length}`);
     }
 
     const truthHeaders = Object.keys(truthData[0]);
     const submissionHeaders = Object.keys(submissionData[0]);
     const missingColumns = truthHeaders.filter((c) => !submissionHeaders.includes(c));
     if (missingColumns.length > 0) {
-      throw new Error(`Submission is missing columns: ${missingColumns.join(', ')}`);
+      throw new Error(`Bài nộp đang thiếu các cột: ${missingColumns.join(', ')}`);
     }
 
     const targetColumn = detectTargetColumn(truthHeaders);
@@ -139,7 +139,7 @@ export async function processScoring(job: ScoringJob) {
       for (const subRow of submissionData) {
         const key = subRow[idColumn];
         const truthRow = truthMap.get(key);
-        if (!truthRow) throw new Error(`Unknown ID in submission: ${key}`);
+        if (!truthRow) throw new Error(`ID không hợp lệ trong bài nộp: ${key}`);
         actualValues.push(parseFloat(truthRow[targetColumn]));
         predictedValues.push(parseFloat(subRow[targetColumn]));
       }
@@ -150,14 +150,14 @@ export async function processScoring(job: ScoringJob) {
 
     const isInvalidNumber = (v: number) => !Number.isFinite(v);
     if (actualValues.some(isInvalidNumber)) {
-      throw new Error('Ground truth contains non-numeric, Infinity, or NaN values');
+      throw new Error('Dữ liệu đáp án chứa giá trị không phải số, Infinity hoặc NaN');
     }
     if (predictedValues.some(isInvalidNumber)) {
-      throw new Error('Submission contains non-numeric, Infinity, or NaN values in target column');
+      throw new Error('Bài nộp chứa giá trị không phải số, Infinity hoặc NaN trong cột mục tiêu');
     }
 
     const scorer = SCORERS[competition.evalMetric];
-    if (!scorer) throw new Error(`Unknown metric: ${competition.evalMetric}`);
+    if (!scorer) throw new Error(`Chưa hỗ trợ chỉ số đánh giá: ${competition.evalMetric}`);
 
     const competitionSeed = hashCode(competitionId);
     const { publicIndices, privateIndices } = splitData(truthData, competition.pubPrivSplit, competitionSeed);
@@ -168,14 +168,14 @@ export async function processScoring(job: ScoringJob) {
     const privatePredicted = predictedValues.filter((_, i) => privateIndices.has(i));
 
     if (publicActual.length === 0 || privateActual.length === 0) {
-      throw new Error('Public/private split produced an empty partition — check pubPrivSplit ratio');
+      throw new Error('Tỷ lệ chia công khai/riêng tư tạo ra một nhóm rỗng. Vui lòng kiểm tra pubPrivSplit');
     }
 
     const publicScore = scorer(publicActual, publicPredicted);
     const privateScore = scorer(privateActual, privatePredicted);
 
     if (!Number.isFinite(publicScore) || !Number.isFinite(privateScore)) {
-      throw new Error('Scoring produced non-finite result');
+      throw new Error('Kết quả chấm điểm không hợp lệ');
     }
 
     await prisma.submission.update({
@@ -195,8 +195,8 @@ export async function processScoring(job: ScoringJob) {
       data: {
         userId,
         type: 'SUBMISSION_SCORED',
-        title: 'Submission Scored',
-        message: `Your submission scored ${publicScore.toFixed(5)} (public)`,
+        title: 'Bài nộp đã được chấm điểm',
+        message: `Bài nộp của bạn đạt ${publicScore.toFixed(5)} điểm công khai`,
         refType: 'submission',
         refId: submissionId,
       },
@@ -211,7 +211,7 @@ export async function processScoring(job: ScoringJob) {
 
     return { publicScore, privateScore };
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown scoring error';
+    const message = error instanceof Error ? error.message : 'Lỗi chấm điểm không xác định';
     await prisma.submission.update({
       where: { id: submissionId },
       data: { status: 'FAILED', errorMessage: message },
@@ -221,8 +221,8 @@ export async function processScoring(job: ScoringJob) {
       data: {
         userId,
         type: 'SUBMISSION_SCORED',
-        title: 'Submission Failed',
-        message: `Scoring failed: ${message}`,
+        title: 'Bài nộp chấm điểm thất bại',
+        message: `Chấm điểm thất bại: ${message}`,
         refType: 'submission',
         refId: submissionId,
       },

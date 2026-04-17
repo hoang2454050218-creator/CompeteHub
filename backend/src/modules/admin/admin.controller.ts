@@ -18,7 +18,10 @@ export class AdminController {
   async reviewCompetition(req: Request, res: Response, next: NextFunction) {
     try {
       const result = await service.reviewCompetition(req.params.id, req.body.action);
-      sendSuccess(res, result, `Competition ${req.body.action}d`);
+      const message = req.body.action === 'approve'
+        ? 'Duyệt cuộc thi thành công'
+        : 'Từ chối cuộc thi thành công';
+      sendSuccess(res, result, message);
     } catch (error) {
       next(error);
     }
@@ -31,7 +34,7 @@ export class AdminController {
       const search = req.query.search as string | undefined;
       const role = req.query.role as Role | undefined;
       const result = await service.listUsers(page, limit, search, role);
-      sendSuccess(res, result.data, 'Success', 200, result.pagination);
+      sendSuccess(res, result.data, 'Thành công', 200, result.pagination);
     } catch (error) {
       next(error);
     }
@@ -40,7 +43,7 @@ export class AdminController {
   async updateUser(req: Request, res: Response, next: NextFunction) {
     try {
       const user = await service.updateUser(req.params.id, req.body);
-      sendSuccess(res, user, 'User updated');
+      sendSuccess(res, user, 'Cập nhật người dùng thành công');
     } catch (error) {
       next(error);
     }

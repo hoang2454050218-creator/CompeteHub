@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
+﻿import { useState, useRef, useCallback, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Search, Filter } from 'lucide-react';
 import api from '../services/api';
@@ -6,12 +6,13 @@ import { Competition } from '../types';
 import CompetitionCard from '../components/CompetitionCard';
 import { PageLoader } from '../components/LoadingSpinner';
 import { cn } from '../utils/cn';
+import { getCompetitionCategoryLabel, getCompetitionStatusLabel } from '../utils/displayText';
 
 const CATEGORIES = ['FEATURED', 'GETTING_STARTED', 'RESEARCH', 'COMMUNITY'] as const;
 const SORTS = [
-  { value: 'newest', label: 'Newest' },
-  { value: 'oldest', label: 'Oldest' },
-  { value: 'deadline', label: 'Deadline' },
+  { value: 'newest', label: 'Mới nhất' },
+  { value: 'oldest', label: 'Cũ nhất' },
+  { value: 'deadline', label: 'Hạn cuối' },
 ];
 
 export default function Competitions() {
@@ -56,14 +57,14 @@ export default function Competitions() {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Competitions</h1>
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Cuộc thi</h1>
 
         <div className="flex items-center gap-3 w-full sm:w-auto">
           <div className="relative flex-1 sm:w-80">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
             <input
               type="text"
-              placeholder="Search competitions..."
+              placeholder="Tìm kiếm cuộc thi..."
               value={searchInput}
               onChange={(e) => handleSearch(e.target.value)}
               className="input-field pl-10"
@@ -79,23 +80,23 @@ export default function Competitions() {
         <div className="card p-4 mb-6">
           <div className="flex flex-wrap gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Status</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Trạng thái</label>
               <select value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); }} className="input-field">
-                <option value="">All</option>
-                <option value="ACTIVE">Active</option>
-                <option value="COMPLETED">Completed</option>
-                <option value="ARCHIVED">Archived</option>
+                <option value="">Tất cả</option>
+                <option value="ACTIVE">{getCompetitionStatusLabel('ACTIVE')}</option>
+                <option value="COMPLETED">{getCompetitionStatusLabel('COMPLETED')}</option>
+                <option value="ARCHIVED">{getCompetitionStatusLabel('ARCHIVED')}</option>
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Category</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Danh mục</label>
               <select value={category} onChange={(e) => { setCategory(e.target.value); setPage(1); }} className="input-field">
-                <option value="">All</option>
-                {CATEGORIES.map((c) => <option key={c} value={c}>{c.replace('_', ' ')}</option>)}
+                <option value="">Tất cả</option>
+                {CATEGORIES.map((c) => <option key={c} value={c}>{getCompetitionCategoryLabel(c)}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Sort</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Sắp xếp</label>
               <select value={sort} onChange={(e) => setSort(e.target.value)} className="input-field">
                 {SORTS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
               </select>
@@ -106,8 +107,8 @@ export default function Competitions() {
 
       {isError ? (
         <div className="card p-12 text-center">
-          <h3 className="text-lg font-medium text-red-600 mb-2">Failed to load competitions</h3>
-          <p className="text-gray-500">Please try again later.</p>
+          <h3 className="text-lg font-medium text-red-600 mb-2">Không thể tải danh sách cuộc thi</h3>
+          <p className="text-gray-500">Vui lòng thử lại sau.</p>
         </div>
       ) : isLoading ? (
         <PageLoader />
@@ -122,21 +123,21 @@ export default function Competitions() {
           {pagination && pagination.totalPages > 1 && (
             <div className="flex items-center justify-center gap-2 mt-8">
               <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1} className="btn-secondary text-sm">
-                Previous
+                Trước
               </button>
               <span className="text-sm text-gray-500">
-                Page {pagination.page} of {pagination.totalPages}
+                Trang {pagination.page} / {pagination.totalPages}
               </span>
               <button onClick={() => setPage((p) => Math.min(pagination.totalPages, p + 1))} disabled={page === pagination.totalPages} className="btn-secondary text-sm">
-                Next
+                Sau
               </button>
             </div>
           )}
         </>
       ) : (
         <div className="card p-12 text-center">
-          <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No competitions found</h3>
-          <p className="text-gray-500">Try adjusting your filters or search.</p>
+          <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">Không tìm thấy cuộc thi phù hợp</h3>
+          <p className="text-gray-500">Hãy thử điều chỉnh bộ lọc hoặc từ khóa tìm kiếm.</p>
         </div>
       )}
     </div>
