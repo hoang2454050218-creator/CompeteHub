@@ -20,9 +20,9 @@
 | `FRONTEND_URL` | YES | CORS origin, e.g. `https://yourdomain.com` |
 | `API_URL` | YES | Backend public URL |
 | `OAUTH_CALLBACK_URL` | YES | OAuth callback base URL |
-| `GOOGLE_CLIENT_ID` | NO | Required for Google OAuth |
+| `GOOGLE_CLIENT_ID` | NO | Required for Google OAuth (see [OAUTH_SETUP.md](OAUTH_SETUP.md)). When empty, the Google button is hidden and `/api/v1/auth/google` returns 503 OAUTH_NOT_CONFIGURED. |
 | `GOOGLE_CLIENT_SECRET` | NO | Required for Google OAuth |
-| `GITHUB_CLIENT_ID` | NO | Required for GitHub OAuth |
+| `GITHUB_CLIENT_ID` | NO | Required for GitHub OAuth (see [OAUTH_SETUP.md](OAUTH_SETUP.md)). When empty, the GitHub button is hidden and `/api/v1/auth/github` returns 503. |
 | `GITHUB_CLIENT_SECRET` | NO | Required for GitHub OAuth |
 | `SMTP_HOST` | NO | Required for email (password reset) |
 | `SMTP_PORT` | NO | Default: `587` |

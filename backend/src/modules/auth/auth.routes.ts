@@ -5,6 +5,7 @@ import { validate } from '../../middleware/validate';
 import { authenticate } from '../../middleware/auth';
 import { registerSchema, loginSchema, forgotPasswordSchema, resetPasswordSchema, refreshTokenSchema, exchangeCodeSchema } from './auth.validator';
 import { generateOAuthState, validateOAuthState } from '../../utils/oauthState';
+import { sendSuccess, AppError } from '../../utils/apiResponse';
 import { config } from '../../config';
 
 const router = Router();
@@ -19,12 +20,40 @@ router.get('/me', authenticate, controller.me);
 router.post('/logout', authenticate, controller.logout);
 router.post('/exchange-code', validate(exchangeCodeSchema), controller.exchangeOAuthCode);
 
-router.get('/google', async (req, res, next) => {
+// AUDIT-FIX OAUTH-1: Tell the frontend which OAuth providers are actually
+// configured so it can hide buttons that would otherwise 500 / show confusing
+// "Unknown authentication strategy" errors. Cheap, public, no auth needed.
+router.get('/oauth-providers', (_req, res) => {
+  sendSuccess(res, {
+    google: Boolean(config.oauth.google.clientId && config.oauth.google.clientSecret),
+    github: Boolean(config.oauth.github.clientId && config.oauth.github.clientSecret),
+  });
+});
+
+// AUDIT-FIX OAUTH-2: Return clear 503 NOT_CONFIGURED instead of 500
+// "Unknown authentication strategy" when env var missing.
+function ensureProvider(provider: 'google' | 'github') {
+  return (_req: import('express').Request, _res: import('express').Response, next: import('express').NextFunction) => {
+    const conf = config.oauth[provider];
+    if (!conf.clientId || !conf.clientSecret) {
+      return next(
+        new AppError(
+          `${provider === 'google' ? 'Google' : 'GitHub'} sign-in is not configured on this server. Use email + password instead.`,
+          503,
+          'OAUTH_NOT_CONFIGURED'
+        )
+      );
+    }
+    next();
+  };
+}
+
+router.get('/google', ensureProvider('google'), async (req, res, next) => {
   const state = await generateOAuthState();
   passport.authenticate('google', { scope: ['profile', 'email'], session: false, state })(req, res, next);
 });
 
-router.get('/google/callback', async (req, res, next) => {
+router.get('/google/callback', ensureProvider('google'), async (req, res, next) => {
   const valid = await validateOAuthState(req.query.state as string);
   if (!valid) {
     return res.redirect(`${config.frontendUrl}/login?error=invalid_state`);
@@ -32,12 +61,12 @@ router.get('/google/callback', async (req, res, next) => {
   passport.authenticate('google', { session: false, failureRedirect: `${config.frontendUrl}/login?error=oauth_failed` })(req, res, next);
 }, controller.googleCallback);
 
-router.get('/github', async (req, res, next) => {
+router.get('/github', ensureProvider('github'), async (req, res, next) => {
   const state = await generateOAuthState();
   passport.authenticate('github', { scope: ['user:email'], session: false, state })(req, res, next);
 });
 
-router.get('/github/callback', async (req, res, next) => {
+router.get('/github/callback', ensureProvider('github'), async (req, res, next) => {
   const valid = await validateOAuthState(req.query.state as string);
   if (!valid) {
     return res.redirect(`${config.frontendUrl}/login?error=invalid_state`);
