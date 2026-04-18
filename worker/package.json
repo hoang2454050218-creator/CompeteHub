@@ -16,7 +16,7 @@
     "@opentelemetry/semantic-conventions": "^1.40.0",
     "@prisma/client": "^6.5.0",
     "bullmq": "^5.20.0",
-    "csv-parse": "^5.6.0",
+    "csv-parse": "^6.2.1",
     "dotenv": "^16.4.7",
     "ioredis": "^5.4.2",
     "minio": "^8.0.5",
