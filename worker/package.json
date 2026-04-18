@@ -14,7 +14,7 @@
     "@opentelemetry/resources": "^2.7.0",
     "@opentelemetry/sdk-node": "^0.215.0",
     "@opentelemetry/semantic-conventions": "^1.40.0",
-    "@prisma/client": "^6.5.0",
+    "@prisma/client": "^7.7.0",
     "bullmq": "^5.20.0",
     "csv-parse": "^5.6.0",
     "dotenv": "^16.4.7",
