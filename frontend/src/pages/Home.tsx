@@ -1,13 +1,13 @@
 ﻿import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Trophy, ArrowRight, Zap, Shield, Globe } from 'lucide-react';
+import { Trophy, ArrowRight, Zap, Shield, Globe, AlertCircle, RefreshCw } from 'lucide-react';
 import api from '../services/api';
 import { Competition } from '../types';
 import CompetitionCard from '../components/CompetitionCard';
 import { PageLoader } from '../components/LoadingSpinner';
 
 export default function Home() {
-  const { data: featured, isLoading, isError } = useQuery({
+  const { data: featured, isLoading, isError, refetch, isRefetching } = useQuery({
     queryKey: ['competitions', 'featured'],
     queryFn: () => api.get('/competitions?status=ACTIVE&sort=newest&limit=6').then((r) => r.data.data as Competition[]),
   });
@@ -77,8 +77,19 @@ export default function Home() {
 
         {isError ? (
           <div className="card p-12 text-center">
-            <h3 className="text-lg font-medium text-red-600 mb-2">Không thể tải danh sách cuộc thi</h3>
-            <p className="text-gray-500">Vui lòng thử lại sau.</p>
+            <div className="h-12 w-12 mx-auto rounded-full bg-red-50 dark:bg-red-900/20 flex items-center justify-center mb-4">
+              <AlertCircle className="h-6 w-6 text-red-600" />
+            </div>
+            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">Không thể tải danh sách cuộc thi</h3>
+            <p className="text-gray-500 mb-4">Có thể do mạng hoặc máy chủ tạm thời gián đoạn.</p>
+            <button
+              onClick={() => refetch()}
+              disabled={isRefetching}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500"
+            >
+              <RefreshCw className={`h-4 w-4 ${isRefetching ? 'animate-spin' : ''}`} />
+              {isRefetching ? 'Đang thử lại...' : 'Thử lại'}
+            </button>
           </div>
         ) : isLoading ? (
           <PageLoader />

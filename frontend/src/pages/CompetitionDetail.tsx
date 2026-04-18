@@ -15,7 +15,7 @@ import { Competition, Dataset, Submission, LeaderboardEntry, Discussion } from '
 import { PageLoader } from '../components/LoadingSpinner';
 import { SectionErrorBoundary } from '../components/ErrorBoundary';
 import { cn, formatDate, formatFileSize, timeAgo } from '../utils/cn';
-import { joinCompetition, joinLeaderboard, leaveCompetition } from '../socket';
+import { joinCompetition, joinLeaderboard, leaveCompetition, onDiscussionUpdate } from '../socket';
 import {
   getApiErrorMessage,
   getCompetitionCategoryLabel,
@@ -464,6 +464,18 @@ function DiscussionTab({ competitionId, enrolled }: { competitionId: string; enr
     queryKey: ['discussions', competitionId],
     queryFn: () => api.get(`/competitions/${competitionId}/discussions`).then((r) => r.data.data as Discussion[]),
   });
+
+  useEffect(() => {
+    const off = onDiscussionUpdate((p) => {
+      if (p.competitionId === competitionId) {
+        queryClient.invalidateQueries({ queryKey: ['discussions', competitionId] });
+        if (p.discussionId) {
+          queryClient.invalidateQueries({ queryKey: ['discussion', p.discussionId] });
+        }
+      }
+    });
+    return off;
+  }, [competitionId, queryClient]);
 
   const createMutation = useMutation({
     mutationFn: () => api.post(`/competitions/${competitionId}/discussions`, { title, content }),

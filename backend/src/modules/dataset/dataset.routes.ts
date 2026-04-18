@@ -5,6 +5,7 @@ import { DatasetController } from './dataset.controller';
 import { authenticate, authorize, requireEnrolled } from '../../middleware/auth';
 import { validate, validateUUID } from '../../middleware/validate';
 import { sanitizeFilename, validateDatasetMagicBytes } from '../../utils/fileHelpers';
+import { scanFile } from '../../services/antivirus.service';
 import { AppError } from '../../utils/apiResponse';
 import { Request, Response, NextFunction } from 'express';
 import { uploadDatasetSchema } from './dataset.validator';
@@ -51,7 +52,22 @@ function validateMagicBytes(req: Request, _res: Response, next: NextFunction) {
   next();
 }
 
-router.post('/:id/datasets', authenticate, authorize('HOST', 'ADMIN'), validateUUID('id'), upload.single('file'), validateMagicBytes, validate(uploadDatasetSchema), controller.upload);
+async function antivirusScan(req: Request, _res: Response, next: NextFunction) {
+  if (!req.file) return next();
+  try {
+    const result = await scanFile(req.file.path);
+    if (!result.clean) {
+      const fs = require('fs');
+      fs.unlink(req.file.path, () => {});
+      return next(new AppError(`Tệp chứa mã độc (${result.virus}) và đã bị từ chối`, 400, 'VIRUS_DETECTED'));
+    }
+    next();
+  } catch (err) {
+    next(err);
+  }
+}
+
+router.post('/:id/datasets', authenticate, authorize('HOST', 'ADMIN'), validateUUID('id'), upload.single('file'), validateMagicBytes, antivirusScan, validate(uploadDatasetSchema), controller.upload);
 router.get('/:id/datasets', validateUUID('id'), controller.list);
 router.get('/:id/datasets/:datasetId/download', authenticate, requireEnrolled, validateUUID('id', 'datasetId'), controller.download);
 router.get('/:id/datasets/:datasetId/preview', authenticate, requireEnrolled, validateUUID('id', 'datasetId'), controller.preview);

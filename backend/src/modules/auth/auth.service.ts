@@ -3,16 +3,26 @@ import crypto from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 import prisma from '../../config/database';
 import { config } from '../../config';
+import { redis } from '../../config/redis';
 import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from '../../utils/jwt';
 import { AppError } from '../../utils/apiResponse';
 import { RegisterInput, LoginInput } from './auth.validator';
 import { EmailService } from '../../services/email.service';
+import { MfaService } from './mfa.service';
+import { authFailedLoginTotal } from '../../config/metrics';
+import { BadgeService } from '../badge/badge.service';
 
 function hashToken(token: string): string {
   return crypto.createHash('sha256').update(token).digest('hex');
 }
 
 const emailService = new EmailService();
+const mfaService = new MfaService();
+const badgeService = new BadgeService();
+
+const REQUIRE_EMAIL_VERIFY = process.env.REQUIRE_EMAIL_VERIFY !== 'false';
+const EMAIL_VERIFY_TTL_HOURS = 24;
+const MFA_PENDING_TTL_SECONDS = 300;
 
 export class AuthService {
   async register(input: RegisterInput) {
@@ -22,35 +32,92 @@ export class AuthService {
     }
 
     const passwordHash = await bcrypt.hash(input.password, config.auth.bcryptRounds);
+    const verifyToken = crypto.randomBytes(32).toString('hex');
+    const verifyExp = new Date(Date.now() + EMAIL_VERIFY_TTL_HOURS * 3600_000);
+
     const user = await prisma.user.create({
       data: {
         email: input.email,
         passwordHash,
         name: input.name,
+        emailVerifyToken: hashToken(verifyToken),
+        emailVerifyExp: verifyExp,
       },
-      select: { id: true, email: true, name: true, role: true },
+      select: { id: true, email: true, name: true, role: true, emailVerified: true },
     });
 
+    try {
+      await emailService.sendVerification(user.email, user.name, verifyToken);
+    } catch {
+      // Email delivery failure must not block account creation; user can resend later.
+    }
+
     return user;
+  }
+
+  async verifyEmail(token: string) {
+    const hashed = hashToken(token);
+    const user = await prisma.user.findFirst({
+      where: { emailVerifyToken: hashed, emailVerifyExp: { gt: new Date() } },
+    });
+    if (!user) {
+      throw new AppError('Liên kết xác minh không hợp lệ hoặc đã hết hạn', 400, 'INVALID_VERIFY_TOKEN');
+    }
+    if (user.emailVerified) {
+      return { alreadyVerified: true };
+    }
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { emailVerified: true, emailVerifyToken: null, emailVerifyExp: null },
+    });
+    void badgeService.evaluate({ kind: 'email_verified', userId: user.id });
+    return { alreadyVerified: false };
+  }
+
+  async resendVerification(email: string) {
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user || user.emailVerified) return;
+
+    const verifyToken = crypto.randomBytes(32).toString('hex');
+    const verifyExp = new Date(Date.now() + EMAIL_VERIFY_TTL_HOURS * 3600_000);
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { emailVerifyToken: hashToken(verifyToken), emailVerifyExp: verifyExp },
+    });
+
+    try {
+      await emailService.sendVerification(user.email, user.name, verifyToken);
+    } catch {
+      // Soft-fail to keep enumeration-safe behaviour
+    }
   }
 
   async login(input: LoginInput) {
     const user = await prisma.user.findUnique({ where: { email: input.email } });
     if (!user || !user.passwordHash) {
+      authFailedLoginTotal.inc({ reason: 'no_user' });
       throw new AppError('Email hoặc mật khẩu không chính xác', 401, 'INVALID_CREDENTIALS');
     }
 
     if (!user.isActive) {
+      authFailedLoginTotal.inc({ reason: 'deactivated' });
       throw new AppError('Tài khoản đã bị vô hiệu hóa', 403, 'ACCOUNT_DEACTIVATED');
     }
 
     if (user.lockedUntil && user.lockedUntil > new Date()) {
+      authFailedLoginTotal.inc({ reason: 'locked' });
       const minutesLeft = Math.ceil((user.lockedUntil.getTime() - Date.now()) / 60000);
       throw new AppError(`Tài khoản đã bị khóa. Vui lòng thử lại sau ${minutesLeft} phút`, 429, 'ACCOUNT_LOCKED');
     }
 
+    if (REQUIRE_EMAIL_VERIFY && !user.emailVerified) {
+      authFailedLoginTotal.inc({ reason: 'email_unverified' });
+      throw new AppError('Vui lòng xác minh email trước khi đăng nhập', 403, 'EMAIL_NOT_VERIFIED');
+    }
+
     const valid = await bcrypt.compare(input.password, user.passwordHash);
     if (!valid) {
+      authFailedLoginTotal.inc({ reason: 'wrong_password' });
       const failedLogins = user.failedLogins + 1;
       const updateData: { failedLogins: number; lockedUntil?: Date } = { failedLogins };
 
@@ -68,8 +135,41 @@ export class AuthService {
       data: { failedLogins: 0, lockedUntil: null },
     });
 
+    if (user.totpEnabled) {
+      const mfaToken = crypto.randomBytes(32).toString('hex');
+      await redis.set(`mfa:pending:${mfaToken}`, user.id, 'EX', MFA_PENDING_TTL_SECONDS);
+      return { mfaRequired: true as const, mfaToken };
+    }
+
     const tokens = this.generateTokens(user.id, user.role);
 
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { refreshToken: hashToken(tokens.refreshToken) },
+    });
+
+    return {
+      mfaRequired: false as const,
+      user: { id: user.id, email: user.email, name: user.name, role: user.role, avatarUrl: user.avatarUrl },
+      ...tokens,
+    };
+  }
+
+  async loginMfa(mfaToken: string, code: string) {
+    const userId = await redis.get(`mfa:pending:${mfaToken}`);
+    if (!userId) {
+      throw new AppError('Phiên xác thực 2 yếu tố đã hết hạn', 401, 'MFA_TOKEN_EXPIRED');
+    }
+    const verified = await mfaService.verify(userId, code);
+    if (!verified) {
+      throw new AppError('Mã xác thực không đúng', 401, 'INVALID_MFA_CODE');
+    }
+    await redis.del(`mfa:pending:${mfaToken}`);
+
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new AppError('Không tìm thấy người dùng', 404);
+
+    const tokens = this.generateTokens(user.id, user.role);
     await prisma.user.update({
       where: { id: user.id },
       data: { refreshToken: hashToken(tokens.refreshToken) },
@@ -220,6 +320,7 @@ export class AuthService {
           googleId: profile.googleId,
           githubId: profile.githubId,
           githubUrl: profile.githubUrl,
+          emailVerified: true,
         },
       });
     }

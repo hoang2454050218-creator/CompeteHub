@@ -1,11 +1,20 @@
 import dotenv from 'dotenv';
 dotenv.config();
 
+import './tracing';
 import http from 'http';
 import pino from 'pino';
 import { Worker, Queue } from 'bullmq';
 import Redis from 'ioredis';
 import { processScoring, ScoringJob } from './processor';
+import {
+  registry as metricsRegistry,
+  scoringJobsTotal,
+  scoringDurationSeconds,
+  scoringRowsProcessed,
+  dlqDepth,
+  workerHealthy,
+} from './metrics';
 
 const isProduction = process.env.NODE_ENV === 'production';
 
@@ -68,12 +77,24 @@ const worker = new Worker<ScoringJob>(
   'scoring',
   async (job) => {
     logger.info({ jobId: job.id, submissionId: job.data.submissionId, attempt: job.attemptsMade + 1 }, 'Processing scoring job');
-    const result = await processScoring(job.data);
-    logger.info(
-      { jobId: job.id, publicScore: result.publicScore },
-      'Scoring job completed'
-    );
-    return result;
+    const stop = scoringDurationSeconds.startTimer();
+    let metricLabel = 'unknown';
+    try {
+      const result = await processScoring(job.data);
+      metricLabel = result.metric ?? 'unknown';
+      stop({ metric: metricLabel });
+      if (typeof result.rowCount === 'number') {
+        scoringRowsProcessed.observe(result.rowCount);
+      }
+      logger.info(
+        { jobId: job.id, publicScore: result.publicScore },
+        'Scoring job completed'
+      );
+      return result;
+    } catch (err) {
+      stop({ metric: metricLabel });
+      throw err;
+    }
   },
   {
     connection,
@@ -85,13 +106,16 @@ const worker = new Worker<ScoringJob>(
 );
 
 worker.on('completed', (job) => {
+  scoringJobsTotal.inc({ outcome: 'completed' });
   logger.info({ jobId: job.id }, 'Job completed successfully');
 });
 
 worker.on('failed', async (job, err) => {
+  scoringJobsTotal.inc({ outcome: 'failed' });
   logger.error({ jobId: job?.id, err: err.message, attempts: job?.attemptsMade }, 'Job failed');
 
   if (job && job.attemptsMade >= (job.opts.attempts ?? 1)) {
+    scoringJobsTotal.inc({ outcome: 'dlq' });
     logger.warn({ jobId: job.id }, 'Job exhausted all retries, moving to DLQ');
     try {
       await dlq.add('dead-job', {
@@ -117,10 +141,25 @@ worker.on('error', (err) => {
 logger.info('Scoring worker started, waiting for jobs...');
 
 let isHealthy = true;
+workerHealthy.set(1);
+
+async function pollDlqDepth() {
+  try {
+    const counts = await dlq.getJobCounts('waiting', 'active', 'delayed');
+    dlqDepth.set((counts.waiting ?? 0) + (counts.active ?? 0) + (counts.delayed ?? 0));
+  } catch (err) {
+    logger.debug({ err }, 'Failed to read DLQ depth');
+  }
+}
+const dlqInterval = setInterval(pollDlqDepth, 30_000);
+dlqInterval.unref();
+void pollDlqDepth();
 
 async function shutdown(signal: string) {
   logger.info({ signal }, 'Shutdown signal received, draining worker...');
   isHealthy = false;
+  workerHealthy.set(0);
+  clearInterval(dlqInterval);
   try {
     await worker.close();
     logger.info('Worker drained and closed');
@@ -135,6 +174,10 @@ async function shutdown(signal: string) {
   } catch (err) {
     logger.error({ err }, 'Error closing Redis');
   }
+  try {
+    const { shutdownTracing } = await import('./tracing');
+    await shutdownTracing();
+  } catch { /* ignore */ }
   process.exit(0);
 }
 
@@ -151,7 +194,17 @@ process.on('uncaughtException', (err) => {
 });
 
 const healthPort = parseInt(process.env.WORKER_HEALTH_PORT || '3001', 10);
-const healthServer = http.createServer(async (_req, res) => {
+const healthServer = http.createServer(async (req, res) => {
+  if (req.url === '/metrics') {
+    try {
+      res.writeHead(200, { 'Content-Type': metricsRegistry.contentType });
+      res.end(await metricsRegistry.metrics());
+    } catch (err) {
+      logger.error({ err }, 'Failed to render metrics');
+      res.writeHead(500); res.end('# metrics_error\n');
+    }
+    return;
+  }
   if (!isHealthy) {
     res.writeHead(503, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ status: 'draining' }));
@@ -167,5 +220,5 @@ const healthServer = http.createServer(async (_req, res) => {
   }
 });
 healthServer.listen(healthPort, () => {
-  logger.info({ port: healthPort }, 'Worker health check listening');
+  logger.info({ port: healthPort }, 'Worker health + metrics listening');
 });

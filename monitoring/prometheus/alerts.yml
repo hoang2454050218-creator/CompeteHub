@@ -1,0 +1,88 @@
+groups:
+  - name: backend
+    interval: 30s
+    rules:
+      - alert: BackendDown
+        expr: up{service="backend"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: Backend is down
+          description: "Backend {{ $labels.instance }} has been unreachable for more than 2 minutes."
+
+      - alert: BackendHighErrorRate
+        expr: |
+          sum by (service) (rate(http_requests_total{status=~"5.."}[5m]))
+          / sum by (service) (rate(http_requests_total[5m])) > 0.05
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: Backend 5xx error rate above 5%
+          description: "5xx rate over 5m exceeds 5% on {{ $labels.service }}."
+
+      - alert: BackendHighLatencyP95
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum by (le, route) (rate(http_request_duration_seconds_bucket[5m]))
+          ) > 1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: P95 HTTP latency above 1s
+          description: "Route {{ $labels.route }} p95 latency > 1s for 10 minutes."
+
+  - name: worker
+    interval: 30s
+    rules:
+      - alert: WorkerDown
+        expr: up{service="worker"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: Worker is down
+          description: "Worker has been unreachable for more than 2 minutes."
+
+      - alert: WorkerDraining
+        expr: worker_healthy == 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Worker draining for too long
+          description: "Worker is not accepting new jobs for >5 min."
+
+      - alert: ScoringQueueBacklog
+        expr: bullmq_queue_depth{queue="scoring",state="waiting"} > 100
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: Scoring queue backlog growing
+          description: "More than 100 jobs waiting for over 10 minutes."
+
+      - alert: ScoringDLQNonEmpty
+        expr: worker_dlq_depth > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Dead-letter queue has jobs
+          description: "{{ $value }} jobs in DLQ. Manual investigation required."
+
+  - name: auth
+    interval: 30s
+    rules:
+      - alert: AuthFailedLoginSpike
+        expr: |
+          sum(rate(auth_failed_login_total[5m])) > 5
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: Spike in failed login attempts
+          description: "More than 5 failed logins per second over 5 min — possible brute force."

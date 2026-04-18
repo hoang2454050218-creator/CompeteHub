@@ -44,9 +44,29 @@ describe('AuthService.login', () => {
     mockPrisma.user.update.mockResolvedValue(createMockUser());
 
     const result = await service.login({ email: 'test@test.com', password: 'correct' });
+    if (result.mfaRequired) throw new Error('Expected non-MFA login result');
     expect(result.accessToken).toBeDefined();
     expect(result.refreshToken).toBeDefined();
     expect(result.user.email).toBe('test@example.com');
+  });
+
+  it('returns mfaRequired when totp enabled', async () => {
+    const hash = await bcrypt.hash('correct', 12);
+    mockPrisma.user.findUnique.mockResolvedValue(createMockUser({ passwordHash: hash, totpEnabled: true }));
+    mockPrisma.user.update.mockResolvedValue(createMockUser());
+
+    const result = await service.login({ email: 'test@test.com', password: 'correct' });
+    expect(result.mfaRequired).toBe(true);
+    if (result.mfaRequired) {
+      expect(result.mfaToken).toBeDefined();
+    }
+  });
+
+  it('throws 403 when email is not verified', async () => {
+    const hash = await bcrypt.hash('correct', 12);
+    mockPrisma.user.findUnique.mockResolvedValue(createMockUser({ passwordHash: hash, emailVerified: false }));
+    await expect(service.login({ email: 'test@test.com', password: 'correct' }))
+      .rejects.toMatchObject({ statusCode: 403, errorCode: 'EMAIL_NOT_VERIFIED' });
   });
 
   it('throws 401 for wrong password', async () => {

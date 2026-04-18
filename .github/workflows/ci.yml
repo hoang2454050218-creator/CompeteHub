@@ -198,3 +198,118 @@ jobs:
 
       - name: Build worker image
         run: docker build -f worker/Dockerfile.prod -t worker-test worker/
+
+  e2e-test:
+    name: E2E Smoke (Playwright)
+    runs-on: ubuntu-latest
+    needs: [backend-test, frontend-test, worker-test]
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: competition_platform_e2e
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Install e2e dependencies
+        working-directory: e2e
+        run: npm install
+
+      - name: Install Playwright browsers
+        working-directory: e2e
+        run: npx playwright install --with-deps chromium firefox
+
+      - name: Generate Prisma client
+        working-directory: backend
+        run: npx prisma generate
+
+      - name: Enable pg_trgm
+        env:
+          PGPASSWORD: postgres
+        run: |
+          sudo apt-get install -y postgresql-client
+          psql -h localhost -U postgres -d competition_platform_e2e -c "CREATE EXTENSION IF NOT EXISTS pg_trgm;"
+
+      - name: Run migrations
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/competition_platform_e2e
+        run: npx prisma migrate deploy
+
+      - name: Start backend in background
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/competition_platform_e2e
+          REDIS_URL: redis://localhost:6379
+          JWT_ACCESS_SECRET: test-access-secret-must-be-at-least-32chars-for-tests
+          JWT_REFRESH_SECRET: test-refresh-secret-must-be-at-least-32chars-for-tests
+          MINIO_ENDPOINT: localhost
+          MINIO_ACCESS_KEY: dummy-access-key
+          MINIO_SECRET_KEY: dummy-secret-key
+          NODE_ENV: test
+          REQUIRE_EMAIL_VERIFY: "false"
+          PORT: 3000
+          FRONTEND_URL: http://localhost:5173
+        run: npm run dev &
+
+      - name: Build frontend
+        working-directory: frontend
+        env:
+          VITE_API_URL: http://localhost:3000/api/v1
+        run: npm run build
+
+      - name: Serve frontend
+        working-directory: frontend
+        run: npx vite preview --port 5173 --host 0.0.0.0 &
+
+      - name: Wait for services
+        run: |
+          npx wait-on http://localhost:3000/api/health http://localhost:5173 --timeout 60000
+
+      - name: Run Playwright tests
+        working-directory: e2e
+        env:
+          E2E_BASE_URL: http://localhost:5173
+        run: npm test
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: e2e/playwright-report
+          retention-days: 7

@@ -1,0 +1,56 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "graphTooltip": 0,
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Worker healthy",
+      "gridPos": { "x": 0, "y": 0, "w": 6, "h": 4 },
+      "targets": [
+        { "expr": "worker_healthy", "refId": "A" }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "DLQ depth",
+      "gridPos": { "x": 6, "y": 0, "w": 6, "h": 4 },
+      "targets": [
+        { "expr": "worker_dlq_depth", "refId": "A" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Scoring jobs by outcome (rate 5m)",
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+      "targets": [
+        { "expr": "sum by (outcome) (rate(worker_scoring_jobs_total[5m]))", "legendFormat": "{{outcome}}", "refId": "A" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Scoring duration p50/p95/p99",
+      "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 },
+      "targets": [
+        { "expr": "histogram_quantile(0.5, sum by (le, metric) (rate(worker_scoring_duration_seconds_bucket[5m])))", "legendFormat": "p50 {{metric}}", "refId": "A" },
+        { "expr": "histogram_quantile(0.95, sum by (le, metric) (rate(worker_scoring_duration_seconds_bucket[5m])))", "legendFormat": "p95 {{metric}}", "refId": "B" },
+        { "expr": "histogram_quantile(0.99, sum by (le, metric) (rate(worker_scoring_duration_seconds_bucket[5m])))", "legendFormat": "p99 {{metric}}", "refId": "C" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Rows processed (count per scrape)",
+      "gridPos": { "x": 12, "y": 8, "w": 12, "h": 8 },
+      "targets": [
+        { "expr": "sum(rate(worker_scoring_rows_processed_sum[5m]))", "legendFormat": "rows/sec", "refId": "A" }
+      ]
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["competehub", "worker"],
+  "time": { "from": "now-3h", "to": "now" },
+  "title": "CompeteHub — Worker",
+  "uid": "competehub-worker",
+  "version": 1
+}

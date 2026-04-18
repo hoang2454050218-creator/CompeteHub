@@ -6,9 +6,11 @@ import { AppError } from '../../utils/apiResponse';
 import { StorageService } from '../../services/storage.service';
 import { createRedisConnection } from '../../config/redis';
 import { sanitizeFilename, validateCsvMagicBytes, computeFileHash, stripHtmlTags } from '../../utils/fileHelpers';
+import { submissionUploadTotal } from '../../config/metrics';
+import { scanFile } from '../../services/antivirus.service';
 
 const storage = new StorageService();
-const scoringQueue = new Queue('scoring', {
+export const scoringQueue = new Queue('scoring', {
   connection: createRedisConnection(),
   defaultJobOptions: {
     removeOnComplete: { age: 86400, count: 1000 },
@@ -27,12 +29,21 @@ export class SubmissionService {
 
     if (file.size > competition.maxFileSize) {
       fs.unlink(file.path, () => {});
+      submissionUploadTotal.inc({ outcome: 'too_large' });
       throw new AppError(`Tệp vượt quá kích thước cho phép. Tối đa ${Math.round(competition.maxFileSize / 1048576)} MB`, 413, 'FILE_TOO_LARGE');
     }
 
     if (!validateCsvMagicBytes(file.path)) {
       fs.unlink(file.path, () => {});
+      submissionUploadTotal.inc({ outcome: 'invalid_type' });
       throw new AppError('Tệp không phải CSV hợp lệ', 400, 'INVALID_FILE_TYPE');
+    }
+
+    const scanResult = await scanFile(file.path);
+    if (!scanResult.clean) {
+      fs.unlink(file.path, () => {});
+      submissionUploadTotal.inc({ outcome: 'virus_detected' });
+      throw new AppError(`Tệp chứa mã độc (${scanResult.virus}) và đã bị từ chối`, 400, 'VIRUS_DETECTED');
     }
 
     const fileHash = await computeFileHash(file.path);
@@ -125,6 +136,7 @@ export class SubmissionService {
       backoff: { type: 'exponential', delay: 5000 },
     });
 
+    submissionUploadTotal.inc({ outcome: 'queued' });
     return submission;
   }
 

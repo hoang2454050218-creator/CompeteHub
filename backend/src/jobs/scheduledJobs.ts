@@ -75,38 +75,33 @@ export async function autoCompleteCompetitions() {
 }
 
 async function autoSelectBestSubmissions(competitionId: string, lowerIsBetter: boolean) {
-  const usersWithSelected = await prisma.submission.findMany({
-    where: { competitionId, isSelected: true },
-    distinct: ['userId'],
-    select: { userId: true },
-  });
-  const alreadySelectedUserIds = new Set(usersWithSelected.map((s) => s.userId));
-
-  const participants = await prisma.submission.findMany({
-    where: { competitionId, status: 'SCORED', isSelected: false },
-    distinct: ['userId'],
-    select: { userId: true },
-  });
-
-  const unselectedUserIds = participants
-    .map((p) => p.userId)
-    .filter((uid) => !alreadySelectedUserIds.has(uid));
-
-  if (unselectedUserIds.length === 0) return;
-
-  const bestSubmissions = await prisma.submission.findMany({
-    where: { competitionId, status: 'SCORED', userId: { in: unselectedUserIds } },
-    orderBy: { privateScore: lowerIsBetter ? 'asc' : 'desc' },
-    distinct: ['userId'],
-    select: { id: true },
-  });
-
-  if (bestSubmissions.length > 0) {
-    await prisma.submission.updateMany({
-      where: { id: { in: bestSubmissions.map((s) => s.id) } },
-      data: { isSelected: true },
-    });
-  }
+  const orderDirection = lowerIsBetter ? 'ASC' : 'DESC';
+  await prisma.$transaction(async (tx) => {
+    const updated = await tx.$executeRawUnsafe(
+      `
+      WITH best_per_user AS (
+        SELECT DISTINCT ON (user_id) id
+        FROM submissions
+        WHERE competition_id = $1
+          AND status = 'SCORED'
+          AND private_score IS NOT NULL
+          AND user_id NOT IN (
+            SELECT DISTINCT user_id
+            FROM submissions
+            WHERE competition_id = $1 AND is_selected = true
+          )
+        ORDER BY user_id, private_score ${orderDirection} NULLS LAST, scored_at ASC
+      )
+      UPDATE submissions
+      SET is_selected = true
+      WHERE id IN (SELECT id FROM best_per_user)
+      `,
+      competitionId
+    );
+    if (updated > 0) {
+      logger.info({ competitionId, count: updated }, 'Auto-selected best submissions');
+    }
+  }, { isolationLevel: 'Serializable' });
 }
 
 export async function cleanupOldNotifications() {

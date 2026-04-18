@@ -59,6 +59,8 @@ enum NotificationType {
   COMPETITION_REJECTED
   NEW_DISCUSSION
   NEW_REPLY
+  NEW_FOLLOWER
+  BADGE_AWARDED
   SYSTEM
 }
 
@@ -68,26 +70,50 @@ enum TeamInvitationStatus {
   REJECTED
 }
 
+enum SubmissionType {
+  CSV
+  NOTEBOOK
+  SCRIPT
+}
+
+enum BadgeRarity {
+  COMMON
+  UNCOMMON
+  RARE
+  EPIC
+  LEGENDARY
+}
+
 model User {
-  id            String   @id @default(uuid())
-  email         String   @unique
-  passwordHash  String?  @map("password_hash")
-  name          String
-  avatarUrl     String?  @map("avatar_url")
-  bio           String?
-  githubId      String?  @unique @map("github_id")
-  googleId      String?  @unique @map("google_id")
-  githubUrl     String?  @map("github_url")
-  linkedinUrl   String?  @map("linkedin_url")
-  role          Role     @default(PARTICIPANT)
-  isActive      Boolean  @default(true) @map("is_active")
-  failedLogins  Int      @default(0) @map("failed_logins")
-  lockedUntil   DateTime? @map("locked_until")
-  resetToken    String?  @map("reset_token")
-  resetTokenExp DateTime? @map("reset_token_exp")
-  refreshToken  String?  @map("refresh_token")
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
+  id                      String   @id @default(uuid())
+  email                   String   @unique
+  passwordHash            String?  @map("password_hash")
+  name                    String
+  avatarUrl               String?  @map("avatar_url")
+  bio                     String?
+  githubId                String?  @unique @map("github_id")
+  googleId                String?  @unique @map("google_id")
+  githubUrl               String?  @map("github_url")
+  linkedinUrl             String?  @map("linkedin_url")
+  role                    Role     @default(PARTICIPANT)
+  isActive                Boolean  @default(true) @map("is_active")
+  failedLogins            Int      @default(0) @map("failed_logins")
+  lockedUntil             DateTime? @map("locked_until")
+  resetToken              String?  @map("reset_token")
+  resetTokenExp           DateTime? @map("reset_token_exp")
+  refreshToken            String?  @map("refresh_token")
+  emailVerified           Boolean  @default(false) @map("email_verified")
+  emailVerifyToken        String?  @unique @map("email_verify_token")
+  emailVerifyExp          DateTime? @map("email_verify_exp")
+  totpSecret              String?  @map("totp_secret")
+  totpEnabled             Boolean  @default(false) @map("totp_enabled")
+  totpBackupCodes         String[] @default([]) @map("totp_backup_codes")
+  notificationPreferences Json?    @map("notification_preferences")
+  followerCount           Int      @default(0) @map("follower_count")
+  followingCount          Int      @default(0) @map("following_count")
+  deletedAt               DateTime? @map("deleted_at")
+  createdAt               DateTime @default(now()) @map("created_at")
+  updatedAt               DateTime @updatedAt @map("updated_at")
 
   competitions      Competition[]
   enrollments       Enrollment[]
@@ -100,7 +126,12 @@ model User {
   sentInvitations   TeamInvitation[]  @relation("InvitationSender")
   receivedInvitations TeamInvitation[] @relation("InvitationReceiver")
   leaderboardEntries LeaderboardEntry[]
+  badges            UserBadge[]
+  followers         Follow[]          @relation("Following")
+  following         Follow[]          @relation("Follower")
+  auditLogs         AuditLog[]
 
+  @@index([deletedAt])
   @@map("users")
 }
 
@@ -219,21 +250,23 @@ model TeamInvitation {
 }
 
 model Submission {
-  id            String           @id @default(uuid())
-  userId        String           @map("user_id")
-  competitionId String           @map("competition_id")
-  teamId        String?          @map("team_id")
-  fileUrl       String           @map("file_url")
-  fileName      String           @map("file_name")
-  fileHash      String?          @map("file_hash")
-  description   String?
-  status        SubmissionStatus @default(QUEUED)
-  publicScore   Float?           @map("public_score")
-  privateScore  Float?           @map("private_score")
-  errorMessage  String?          @map("error_message")
-  isSelected    Boolean          @default(false) @map("is_selected")
-  scoredAt      DateTime?        @map("scored_at")
-  createdAt     DateTime         @default(now()) @map("created_at")
+  id              String           @id @default(uuid())
+  userId          String           @map("user_id")
+  competitionId   String           @map("competition_id")
+  teamId          String?          @map("team_id")
+  fileUrl         String           @map("file_url")
+  fileName        String           @map("file_name")
+  fileHash        String?          @map("file_hash")
+  description     String?
+  status          SubmissionStatus @default(QUEUED)
+  submissionType  SubmissionType   @default(CSV) @map("submission_type")
+  kernelUrl       String?          @map("kernel_url")
+  publicScore     Float?           @map("public_score")
+  privateScore    Float?           @map("private_score")
+  errorMessage    String?          @map("error_message")
+  isSelected      Boolean          @default(false) @map("is_selected")
+  scoredAt        DateTime?        @map("scored_at")
+  createdAt       DateTime         @default(now()) @map("created_at")
 
   user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   competition   Competition @relation(fields: [competitionId], references: [id], onDelete: Cascade)
@@ -340,4 +373,67 @@ model Notification {
   @@index([userId, isRead])
   @@index([userId, createdAt])
   @@map("notifications")
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  actorId    String?  @map("actor_id")
+  actorRole  Role?    @map("actor_role")
+  action     String
+  resource   String
+  resourceId String?  @map("resource_id")
+  metadata   Json?
+  ip         String?
+  userAgent  String?  @map("user_agent")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  actor      User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([actorId, createdAt])
+  @@index([resource, resourceId])
+  @@index([action, createdAt])
+  @@map("audit_logs")
+}
+
+model Badge {
+  id          String      @id @default(uuid())
+  code        String      @unique
+  name        String
+  description String
+  iconUrl     String?     @map("icon_url")
+  rarity      BadgeRarity @default(COMMON)
+  rule        Json?
+  createdAt   DateTime    @default(now()) @map("created_at")
+
+  awards      UserBadge[]
+
+  @@map("badges")
+}
+
+model UserBadge {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  badgeId   String   @map("badge_id")
+  awardedAt DateTime @default(now()) @map("awarded_at")
+  metadata  Json?
+
+  user      User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  badge     Badge @relation(fields: [badgeId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, badgeId])
+  @@index([badgeId])
+  @@map("user_badges")
+}
+
+model Follow {
+  followerId  String   @map("follower_id")
+  followingId String   @map("following_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  follower    User @relation("Follower",  fields: [followerId],  references: [id], onDelete: Cascade)
+  following   User @relation("Following", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@id([followerId, followingId])
+  @@index([followingId])
+  @@map("follows")
 }

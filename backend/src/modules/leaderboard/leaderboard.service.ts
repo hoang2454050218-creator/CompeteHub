@@ -2,6 +2,7 @@ import prisma from '../../config/database';
 import { redis } from '../../config/redis';
 import { AppError } from '../../utils/apiResponse';
 import { EvalMetric } from '@prisma/client';
+import { leaderboardCacheTotal } from '../../config/metrics';
 
 const LOWER_IS_BETTER = new Set<EvalMetric>(['RMSE', 'LOG_LOSS']);
 
@@ -22,7 +23,15 @@ export class LeaderboardService {
       const cacheKey = `leaderboard:cache:${competitionId}:public`;
       const cached = await redis.get(cacheKey);
       if (cached) {
-        try { return JSON.parse(cached); } catch { /* ignore */ }
+        try {
+          const parsed = JSON.parse(cached);
+          leaderboardCacheTotal.inc({ result: 'hit' });
+          return parsed;
+        } catch {
+          leaderboardCacheTotal.inc({ result: 'parse_error' });
+        }
+      } else {
+        leaderboardCacheTotal.inc({ result: 'miss' });
       }
     }
 

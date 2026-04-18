@@ -13,5 +13,6 @@ router.get('/dashboard', controller.dashboard);
 router.patch('/competitions/:id/review', validate(reviewCompetitionSchema), controller.reviewCompetition);
 router.get('/users', validate(listUsersQuerySchema, 'query'), controller.listUsers);
 router.patch('/users/:id', validate(updateUserSchema), controller.updateUser);
+router.get('/audit-logs', controller.listAuditLogs);
 
 export default router;

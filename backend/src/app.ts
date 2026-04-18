@@ -1,3 +1,4 @@
+import './config/tracing';
 import express, { Request } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -22,6 +23,8 @@ import { csrfProtection } from './middleware/csrf';
 import { swaggerSpec } from './config/swagger';
 import { logger } from './utils/logger';
 import prisma from './config/database';
+import { registry as metricsRegistry, metricsMiddleware, startQueueDepthCollector } from './config/metrics';
+import { scoringQueue } from './modules/submission/submission.service';
 
 import authRoutes from './modules/auth/auth.routes';
 import competitionRoutes from './modules/competition/competition.routes';
@@ -33,6 +36,8 @@ import discussionRoutes from './modules/discussion/discussion.routes';
 import teamRoutes from './modules/team/team.routes';
 import notificationRoutes from './modules/notification/notification.routes';
 import userRoutes from './modules/user/user.routes';
+import badgeRoutes from './modules/badge/badge.routes';
+import followRoutes from './modules/follow/follow.routes';
 import { recoverStuckSubmissions, autoCompleteCompetitions, cleanupOldNotifications } from './jobs/scheduledJobs';
 import adminRoutes from './modules/admin/admin.routes';
 import { startInlineWorker, stopInlineWorker } from './worker';
@@ -74,6 +79,8 @@ app.use((req, _res, next) => {
   req.headers['x-request-id'] = req.headers['x-request-id'] || uuidv4();
   next();
 });
+
+app.use(metricsMiddleware);
 
 const redisSendCommand = (...args: string[]) =>
   (redis as any).call(...args) as any;
@@ -176,11 +183,39 @@ app.use(`${API}/competitions`, discussionRoutes);
 app.use(`${API}/teams`, teamRoutes);
 app.use(`${API}/notifications`, notificationRoutes);
 app.use(`${API}/users`, userRoutes);
+app.use(`${API}/users`, followRoutes);
+app.use(`${API}/badges`, badgeRoutes);
 app.use(`${API}/admin`, adminRoutes);
 
 if (config.nodeEnv !== 'production') {
   app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 }
+
+function metricsAccessAllowed(req: Request): boolean {
+  const token = process.env.METRICS_TOKEN;
+  if (token) {
+    const header = req.headers.authorization;
+    if (header === `Bearer ${token}`) return true;
+  }
+  const ip = req.ip || '';
+  if (ip === '127.0.0.1' || ip === '::1' || ip.startsWith('::ffff:127.')) return true;
+  if (req.headers['x-forwarded-for'] === undefined && !token) return true;
+  return false;
+}
+
+app.get('/metrics', async (req, res) => {
+  if (!metricsAccessAllowed(req)) {
+    res.status(403).json({ success: false, message: 'Forbidden' });
+    return;
+  }
+  try {
+    res.setHeader('Content-Type', metricsRegistry.contentType);
+    res.send(await metricsRegistry.metrics());
+  } catch (err) {
+    logger.error({ err }, 'Failed to render metrics');
+    res.status(500).send('# metrics_error\n');
+  }
+});
 
 app.get('/api/health', async (req, res) => {
   const checks: Record<string, string> = {};
@@ -224,6 +259,8 @@ app.use(errorHandler);
 
 initSocket(httpServer);
 
+let stopQueueDepthCollector: (() => void) | null = null;
+
 async function start() {
   try {
     await ensureBucket();
@@ -237,6 +274,8 @@ async function start() {
   cron.schedule('*/5 * * * *', autoCompleteCompetitions);
   cron.schedule('0 3 * * *', cleanupOldNotifications);
   recoverStuckSubmissions().catch((err) => logger.error({ err }, 'Startup recovery failed'));
+
+  stopQueueDepthCollector = startQueueDepthCollector([scoringQueue]);
 
   if (process.env.WORKER_INLINE === 'true') {
     startInlineWorker();
@@ -272,6 +311,11 @@ async function shutdown(signal: string) {
 
   await stopInlineWorker();
 
+  if (stopQueueDepthCollector) {
+    stopQueueDepthCollector();
+    stopQueueDepthCollector = null;
+  }
+
   try {
     await redis.quit();
     logger.info('Redis connection closed');
@@ -284,6 +328,13 @@ async function shutdown(signal: string) {
     logger.info('Database connection closed');
   } catch (err) {
     logger.error({ err }, 'Error disconnecting database');
+  }
+
+  try {
+    const { shutdownTracing } = await import('./config/tracing');
+    await shutdownTracing();
+  } catch (err) {
+    logger.error({ err }, 'Error shutting down tracing');
   }
 
   setTimeout(() => {

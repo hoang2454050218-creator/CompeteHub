@@ -1,35 +1,13 @@
 ﻿import { Outlet, Link, useNavigate } from 'react-router-dom';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Trophy, Bell, User, LogOut, Menu, X, ChevronDown,
-  LayoutDashboard, Sun, Moon,
+  LayoutDashboard, Sun, Moon, Settings as SettingsIcon,
 } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { connectSocket, disconnectSocket } from '../socket';
+import { useDarkMode } from '../utils/useDarkMode';
 import api from '../services/api';
-
-function useDarkMode() {
-  const [isDark, setIsDark] = useState(() => {
-    if (typeof window === 'undefined') return false;
-    const stored = localStorage.getItem('theme');
-    if (stored) return stored === 'dark';
-    return window.matchMedia('(prefers-color-scheme: dark)').matches;
-  });
-
-  useEffect(() => {
-    const root = document.documentElement;
-    if (isDark) {
-      root.classList.add('dark');
-      localStorage.setItem('theme', 'dark');
-    } else {
-      root.classList.remove('dark');
-      localStorage.setItem('theme', 'light');
-    }
-  }, [isDark]);
-
-  const toggle = useCallback(() => setIsDark((prev) => !prev), []);
-  return { isDark, toggle };
-}
 
 export default function Layout() {
   const { user, isAuthenticated, logout } = useAuthStore();
@@ -135,6 +113,9 @@ export default function Layout() {
                           <Link to={`/profile/${user?.id}`} onClick={() => setUserMenuOpen(false)} className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800">
                             <User className="h-4 w-4" /> Hồ sơ
                           </Link>
+                          <Link to="/settings" onClick={() => setUserMenuOpen(false)} className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800">
+                            <SettingsIcon className="h-4 w-4" /> Cài đặt
+                          </Link>
                           {user?.role === 'ADMIN' && (
                             <Link to="/admin" onClick={() => setUserMenuOpen(false)} className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800">
                               <LayoutDashboard className="h-4 w-4" /> Bảng điều khiển
@@ -214,12 +195,19 @@ export default function Layout() {
 
       <footer className="border-t border-gray-200 dark:border-dark-border mt-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div className="flex items-center gap-2 text-gray-500">
               <Trophy className="h-5 w-5" />
               <span className="text-sm font-medium">CompeteHub</span>
+              <span className="text-sm text-gray-400">— Nền tảng tổ chức cuộc thi trực tuyến</span>
             </div>
-            <p className="text-sm text-gray-400">Nền tảng tổ chức cuộc thi trực tuyến</p>
+            <nav className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-gray-500">
+              <Link to="/terms" className="hover:text-primary-600 transition-colors">Điều khoản</Link>
+              <Link to="/privacy" className="hover:text-primary-600 transition-colors">Quyền riêng tư</Link>
+              <Link to="/cookies" className="hover:text-primary-600 transition-colors">Cookie</Link>
+              <a href="mailto:support@competehub.local" className="hover:text-primary-600 transition-colors">Liên hệ</a>
+              <span className="text-gray-400">© {new Date().getFullYear()}</span>
+            </nav>
           </div>
         </div>
       </footer>

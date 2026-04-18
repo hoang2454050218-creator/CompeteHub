@@ -1,34 +1,28 @@
 import { Server as HttpServer } from 'http';
 import { Server } from 'socket.io';
+import { createAdapter } from '@socket.io/redis-adapter';
 import { config } from './index';
 import prisma from './database';
 import { redis, createRedisConnection } from './redis';
 import { logger } from '../utils/logger';
 import { verifyAccessToken } from '../utils/jwt';
+import { websocketConnections } from './metrics';
+import { BadgeService } from '../modules/badge/badge.service';
+
+const badgeService = new BadgeService();
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-const socketRateLimits = new Map<string, { count: number; resetAt: number }>();
 const SOCKET_RATE_LIMIT = 30;
-const SOCKET_RATE_WINDOW = 60_000;
+const SOCKET_RATE_WINDOW_SECONDS = 60;
 
-function checkSocketRateLimit(socketId: string): boolean {
-  const now = Date.now();
-  const entry = socketRateLimits.get(socketId);
-  if (!entry || entry.resetAt < now) {
-    socketRateLimits.set(socketId, { count: 1, resetAt: now + SOCKET_RATE_WINDOW });
-    return true;
+async function checkSocketRateLimit(userId: string): Promise<boolean> {
+  const key = `sock:rl:${userId}`;
+  const count = await redis.incr(key);
+  if (count === 1) {
+    await redis.expire(key, SOCKET_RATE_WINDOW_SECONDS);
   }
-  entry.count++;
-  return entry.count <= SOCKET_RATE_LIMIT;
+  return count <= SOCKET_RATE_LIMIT;
 }
-
-setInterval(() => {
-  const now = Date.now();
-  for (const [key, entry] of socketRateLimits) {
-    if (entry.resetAt < now) socketRateLimits.delete(key);
-  }
-}, 60_000).unref();
 
 let io: Server;
 
@@ -41,6 +35,10 @@ export function initSocket(httpServer: HttpServer) {
     pingTimeout: 60000,
     pingInterval: 25000,
   });
+
+  const pubClient = createRedisConnection();
+  const subClient = pubClient.duplicate();
+  io.adapter(createAdapter(pubClient, subClient));
 
   io.use((socket, next) => {
     const token = socket.handshake.auth.token;
@@ -59,10 +57,11 @@ export function initSocket(httpServer: HttpServer) {
   io.on('connection', (socket) => {
     const userId = socket.data.userId;
     socket.join(`user:${userId}`);
+    websocketConnections.inc();
 
     socket.on('join:competition', async (competitionId: string) => {
       try {
-        if (!checkSocketRateLimit(socket.id)) return;
+        if (!(await checkSocketRateLimit(userId))) return;
         if (!competitionId || !UUID_REGEX.test(competitionId)) return;
         if (socket.data.role === 'ADMIN') {
           socket.join(`competition:${competitionId}`);
@@ -86,7 +85,7 @@ export function initSocket(httpServer: HttpServer) {
 
     socket.on('join:leaderboard', async (competitionId: string) => {
       try {
-        if (!checkSocketRateLimit(socket.id)) return;
+        if (!(await checkSocketRateLimit(userId))) return;
         if (!competitionId || !UUID_REGEX.test(competitionId)) return;
         if (socket.data.role === 'ADMIN') {
           socket.join(`leaderboard:${competitionId}`);
@@ -109,7 +108,7 @@ export function initSocket(httpServer: HttpServer) {
     });
 
     socket.on('disconnect', () => {
-      // cleanup handled automatically by socket.io
+      websocketConnections.dec();
     });
   });
 
@@ -118,21 +117,40 @@ export function initSocket(httpServer: HttpServer) {
     if (err) logger.error({ err }, 'Failed to subscribe to scoring:complete');
     else logger.info('Subscribed to scoring:complete channel');
   });
-  subscriber.on('message', (_channel, message) => {
+  subscriber.subscribe('discussion:new', (err) => {
+    if (err) logger.error({ err }, 'Failed to subscribe to discussion:new');
+  });
+  subscriber.on('message', (channel, message) => {
     try {
       const data = JSON.parse(message);
-      io.to(`leaderboard:${data.competitionId}`).emit('leaderboard:updated', {
-        competitionId: data.competitionId,
-        userId: data.userId,
-        publicScore: data.publicScore,
-      });
-      io.to(`user:${data.userId}`).emit('submission:scored', {
-        submissionId: data.submissionId,
-        publicScore: data.publicScore,
-        privateScore: data.privateScore,
-      });
+      if (channel === 'scoring:complete') {
+        io.to(`leaderboard:${data.competitionId}`).emit('leaderboard:updated', {
+          competitionId: data.competitionId,
+          userId: data.userId,
+          publicScore: data.publicScore,
+        });
+        io.to(`user:${data.userId}`).emit('submission:scored', {
+          submissionId: data.submissionId,
+          publicScore: data.publicScore,
+          privateScore: data.privateScore,
+        });
+        void badgeService.evaluate({
+          kind: 'submission_scored',
+          userId: data.userId,
+          competitionId: data.competitionId,
+        });
+        return;
+      }
+      if (channel === 'discussion:new') {
+        io.to(`competition:${data.competitionId}`).emit('discussion:new', {
+          competitionId: data.competitionId,
+          discussionId: data.discussionId,
+          replyId: data.replyId,
+          kind: data.kind,
+        });
+      }
     } catch (err) {
-      logger.error({ err }, 'Error processing scoring:complete message');
+      logger.error({ err, channel }, 'Error processing pub/sub message');
     }
   });
 

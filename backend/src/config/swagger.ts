@@ -160,6 +160,100 @@ const options: swaggerJsdoc.Options = {
           responses: { '200': { description: 'Leaderboard entries' } },
         },
       },
+      '/auth/verify-email': {
+        post: {
+          tags: ['Auth'],
+          summary: 'Verify email with token',
+          requestBody: { content: { 'application/json': { schema: { type: 'object', required: ['token'], properties: { token: { type: 'string' } } } } } },
+          responses: { '200': { description: 'Email verified' } },
+        },
+      },
+      '/auth/resend-verification': {
+        post: {
+          tags: ['Auth'],
+          summary: 'Resend email verification link (rate limited)',
+          requestBody: { content: { 'application/json': { schema: { type: 'object', required: ['email'], properties: { email: { type: 'string', format: 'email' } } } } } },
+          responses: { '200': { description: 'Sent if user exists and not verified' } },
+        },
+      },
+      '/auth/mfa/setup': {
+        post: {
+          tags: ['Auth', 'MFA'],
+          summary: 'Begin TOTP MFA setup, returns QR code data URL',
+          security: [{ bearerAuth: [] }],
+          responses: { '200': { description: 'Returns secret + qrDataUrl' } },
+        },
+      },
+      '/auth/mfa/enable': {
+        post: {
+          tags: ['Auth', 'MFA'],
+          summary: 'Confirm TOTP code and enable MFA, returns backup codes',
+          security: [{ bearerAuth: [] }],
+          requestBody: { content: { 'application/json': { schema: { type: 'object', required: ['code'], properties: { code: { type: 'string' } } } } } },
+          responses: { '200': { description: 'MFA enabled, backup codes returned (one-time)' } },
+        },
+      },
+      '/auth/mfa/disable': {
+        post: {
+          tags: ['Auth', 'MFA'],
+          summary: 'Disable MFA (requires password)',
+          security: [{ bearerAuth: [] }],
+          requestBody: { content: { 'application/json': { schema: { type: 'object', required: ['password'], properties: { password: { type: 'string' } } } } } },
+          responses: { '200': { description: 'MFA disabled' } },
+        },
+      },
+      '/auth/login/mfa': {
+        post: {
+          tags: ['Auth', 'MFA'],
+          summary: 'Complete login by submitting TOTP / backup code',
+          requestBody: { content: { 'application/json': { schema: { type: 'object', required: ['mfaToken','code'], properties: { mfaToken: { type: 'string' }, code: { type: 'string' } } } } } },
+          responses: { '200': { description: 'Login successful' } },
+        },
+      },
+      '/users/me/export': {
+        get: {
+          tags: ['User', 'GDPR'],
+          summary: 'Export all data tied to current account as JSON',
+          security: [{ bearerAuth: [] }],
+          responses: { '200': { description: 'JSON export download' } },
+        },
+      },
+      '/users/me': {
+        delete: {
+          tags: ['User', 'GDPR'],
+          summary: 'Anonymize and deactivate current account (requires password + DELETE confirm)',
+          security: [{ bearerAuth: [] }],
+          requestBody: { content: { 'application/json': { schema: { type: 'object', required: ['password','confirm'], properties: { password: { type: 'string' }, confirm: { type: 'string', enum: ['DELETE'] } } } } } },
+          responses: { '200': { description: 'Account anonymized' } },
+        },
+      },
+      '/users/me/notification-preferences': {
+        put: {
+          tags: ['User'],
+          summary: 'Update notification preferences map',
+          security: [{ bearerAuth: [] }],
+          responses: { '200': { description: 'Saved' } },
+        },
+      },
+      '/users/{id}/follow': {
+        post: { tags: ['Follow'], summary: 'Follow a user', security: [{ bearerAuth: [] }], parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }], responses: { '200': { description: 'Followed' } } },
+        delete: { tags: ['Follow'], summary: 'Unfollow a user', security: [{ bearerAuth: [] }], parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }], responses: { '200': { description: 'Unfollowed' } } },
+      },
+      '/users/{id}/followers': {
+        get: { tags: ['Follow'], summary: 'List followers of a user', parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }], responses: { '200': { description: 'List' } } },
+      },
+      '/users/{id}/following': {
+        get: { tags: ['Follow'], summary: 'List users that a user follows', parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }], responses: { '200': { description: 'List' } } },
+      },
+      '/badges': {
+        get: { tags: ['Badges'], summary: 'List all available badges', responses: { '200': { description: 'List of badges' } } },
+      },
+      '/badges/users/{id}': {
+        get: { tags: ['Badges'], summary: 'List badges a user has earned', parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }], responses: { '200': { description: 'List' } } },
+      },
+      '/admin/audit-logs': {
+        get: { tags: ['Admin'], summary: 'Paginated audit log (admin only)', security: [{ bearerAuth: [] }], responses: { '200': { description: 'List of audit log entries' } } },
+      },
     },
   },
   apis: [],

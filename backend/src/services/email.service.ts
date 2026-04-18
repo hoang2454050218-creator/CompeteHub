@@ -53,6 +53,28 @@ export class EmailService {
     });
   }
 
+  async sendVerification(to: string, name: string, verifyToken: string) {
+    const verifyUrl = `${config.frontendUrl}/verify-email?token=${encodeURIComponent(verifyToken)}`;
+    const safeName = escapeHtml(name);
+
+    await this.send({
+      to,
+      subject: 'Xác minh địa chỉ email - CompeteHub',
+      html: `
+        <div style="max-width: 600px; margin: 0 auto; font-family: Arial, sans-serif;">
+          <h2>Xác minh địa chỉ email</h2>
+          <p>Xin chào ${safeName},</p>
+          <p>Cảm ơn bạn đã đăng ký CompeteHub. Vui lòng bấm nút bên dưới để xác minh email của bạn:</p>
+          <a href="${verifyUrl}" style="display: inline-block; background: #3b82f6; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin: 16px 0;">
+            Xác minh email
+          </a>
+          <p>Liên kết này sẽ hết hạn sau 24 giờ.</p>
+          <p>Nếu bạn không đăng ký tài khoản này, hãy bỏ qua email này.</p>
+        </div>
+      `,
+    });
+  }
+
   async sendNotification(to: string, subject: string, message: string) {
     const safeSubject = escapeHtml(subject);
     const safeMessage = escapeHtml(message);

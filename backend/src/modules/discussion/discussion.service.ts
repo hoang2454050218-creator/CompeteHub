@@ -1,18 +1,33 @@
 import prisma from '../../config/database';
+import { redis } from '../../config/redis';
 import { AppError } from '../../utils/apiResponse';
 import { VoteableType } from '@prisma/client';
 import { stripHtmlTags } from '../../utils/fileHelpers';
+import { BadgeService } from '../badge/badge.service';
+import { logger } from '../../utils/logger';
+
+const badgeService = new BadgeService();
+
+async function publishDiscussionEvent(payload: { competitionId: string; discussionId: string; replyId?: string; kind: 'topic' | 'reply' }) {
+  try {
+    await redis.publish('discussion:new', JSON.stringify(payload));
+  } catch (err) {
+    logger.warn({ err }, 'Failed to publish discussion event');
+  }
+}
 
 export class DiscussionService {
   async createTopic(competitionId: string, authorId: string, title: string, content: string) {
     const safeTitle = stripHtmlTags(title);
     const safeContent = stripHtmlTags(content);
-    return prisma.discussion.create({
+    const topic = await prisma.discussion.create({
       data: { competitionId, authorId, title: safeTitle, content: safeContent },
       include: {
         author: { select: { id: true, name: true, avatarUrl: true } },
       },
     });
+    void publishDiscussionEvent({ competitionId, discussionId: topic.id, kind: 'topic' });
+    return topic;
   }
 
   async listTopics(competitionId: string, page = 1, limit = 20) {
@@ -77,8 +92,8 @@ export class DiscussionService {
     }
 
     const safeContent = stripHtmlTags(content);
-    return prisma.$transaction(async (tx) => {
-      const reply = await tx.discussionReply.create({
+    const reply = await prisma.$transaction(async (tx) => {
+      const created = await tx.discussionReply.create({
         data: { discussionId, authorId, content: safeContent, parentReplyId },
         include: {
           author: { select: { id: true, name: true, avatarUrl: true } },
@@ -88,8 +103,15 @@ export class DiscussionService {
         where: { id: discussionId },
         data: { replyCount: { increment: 1 } },
       });
-      return reply;
+      return created;
     });
+    void publishDiscussionEvent({
+      competitionId: discussion.competitionId,
+      discussionId,
+      replyId: reply.id,
+      kind: 'reply',
+    });
+    return reply;
   }
 
   async vote(userId: string, competitionId: string, voteableType: VoteableType, voteableId: string, value: 1 | -1) {
@@ -129,14 +151,34 @@ export class DiscussionService {
         action = 'voted';
       }
 
+      let updatedAuthorId: string | null = null;
+      let updatedUpvoteCount = 0;
+
       if (voteableType === 'DISCUSSION') {
-        await tx.discussion.update({ where: { id: voteableId }, data: { upvoteCount: { increment: delta } } });
+        const updated = await tx.discussion.update({
+          where: { id: voteableId },
+          data: { upvoteCount: { increment: delta } },
+          select: { authorId: true, upvoteCount: true },
+        });
+        updatedAuthorId = updated.authorId;
+        updatedUpvoteCount = updated.upvoteCount;
       } else {
-        await tx.discussionReply.update({ where: { id: voteableId }, data: { upvoteCount: { increment: delta } } });
+        const updated = await tx.discussionReply.update({
+          where: { id: voteableId },
+          data: { upvoteCount: { increment: delta } },
+          select: { authorId: true, upvoteCount: true },
+        });
+        updatedAuthorId = updated.authorId;
+        updatedUpvoteCount = updated.upvoteCount;
       }
 
-      return { action };
-    }, { isolationLevel: 'Serializable' });
+      return { action, authorId: updatedAuthorId, upvoteCount: updatedUpvoteCount };
+    }, { isolationLevel: 'Serializable' }).then((result) => {
+      if (result.authorId && result.upvoteCount >= 10) {
+        void badgeService.evaluate({ kind: 'vote_received', userId: result.authorId, upvoteCount: result.upvoteCount });
+      }
+      return { action: result.action };
+    });
   }
 
   async updateTopic(discussionId: string, userId: string, title?: string, content?: string) {

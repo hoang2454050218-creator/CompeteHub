@@ -1,9 +1,11 @@
 import crypto from 'crypto';
 import { Request, Response, NextFunction } from 'express';
 import { AuthService } from './auth.service';
+import { MfaService } from './mfa.service';
 import { sendSuccess, AppError } from '../../utils/apiResponse';
 import { config } from '../../config';
 import { redis } from '../../config/redis';
+import { auditLog, actorFromRequest } from '../../services/auditLog.service';
 
 interface OAuthProfile {
   id: string;
@@ -17,6 +19,7 @@ interface OAuthProfile {
 }
 
 const authService = new AuthService();
+const mfaService = new MfaService();
 
 const COOKIE_OPTIONS = {
   httpOnly: true,
@@ -30,7 +33,25 @@ export class AuthController {
   async register(req: Request, res: Response, next: NextFunction) {
     try {
       const user = await authService.register(req.body);
-      sendSuccess(res, user, 'Đăng ký thành công', 201);
+      sendSuccess(res, user, 'Đăng ký thành công. Vui lòng kiểm tra email để xác minh.', 201);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async verifyEmail(req: Request, res: Response, next: NextFunction) {
+    try {
+      const result = await authService.verifyEmail(req.body.token);
+      sendSuccess(res, result, result.alreadyVerified ? 'Email đã được xác minh trước đó' : 'Xác minh email thành công');
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async resendVerification(req: Request, res: Response, next: NextFunction) {
+    try {
+      await authService.resendVerification(req.body.email);
+      sendSuccess(res, null, 'Nếu email tồn tại và chưa xác minh, liên kết mới đã được gửi');
     } catch (error) {
       next(error);
     }
@@ -39,8 +60,86 @@ export class AuthController {
   async login(req: Request, res: Response, next: NextFunction) {
     try {
       const result = await authService.login(req.body);
+      if (result.mfaRequired) {
+        sendSuccess(res, { mfaRequired: true, mfaToken: result.mfaToken }, 'Vui lòng nhập mã xác thực 2 yếu tố');
+        return;
+      }
+      void auditLog.record({
+        ...actorFromRequest(req),
+        actorId: result.user.id,
+        actorRole: result.user.role,
+        action: 'auth.login',
+        resource: 'user',
+        resourceId: result.user.id,
+      });
       res.cookie('refreshToken', result.refreshToken, COOKIE_OPTIONS);
       sendSuccess(res, { user: result.user, accessToken: result.accessToken }, 'Đăng nhập thành công');
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async loginMfa(req: Request, res: Response, next: NextFunction) {
+    try {
+      const result = await authService.loginMfa(req.body.mfaToken, req.body.code);
+      void auditLog.record({
+        ...actorFromRequest(req),
+        actorId: result.user.id,
+        actorRole: result.user.role,
+        action: 'auth.login.mfa',
+        resource: 'user',
+        resourceId: result.user.id,
+      });
+      res.cookie('refreshToken', result.refreshToken, COOKIE_OPTIONS);
+      sendSuccess(res, { user: result.user, accessToken: result.accessToken }, 'Đăng nhập thành công');
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async mfaSetup(req: Request, res: Response, next: NextFunction) {
+    try {
+      const result = await mfaService.setup(req.user!.userId);
+      sendSuccess(res, result);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async mfaEnable(req: Request, res: Response, next: NextFunction) {
+    try {
+      const result = await mfaService.enable(req.user!.userId, req.body.code);
+      void auditLog.record({
+        ...actorFromRequest(req),
+        action: 'auth.mfa.enable',
+        resource: 'user',
+        resourceId: req.user!.userId,
+      });
+      sendSuccess(res, result, 'Đã bật xác thực 2 yếu tố');
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async mfaDisable(req: Request, res: Response, next: NextFunction) {
+    try {
+      await mfaService.disable(req.user!.userId, req.body.password);
+      void auditLog.record({
+        ...actorFromRequest(req),
+        action: 'auth.mfa.disable',
+        resource: 'user',
+        resourceId: req.user!.userId,
+      });
+      sendSuccess(res, null, 'Đã tắt xác thực 2 yếu tố');
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async mfaRegenerateBackupCodes(req: Request, res: Response, next: NextFunction) {
+    try {
+      const result = await mfaService.regenerateBackupCodes(req.user!.userId, req.body.password);
+      sendSuccess(res, result, 'Đã tạo lại mã dự phòng');
     } catch (error) {
       next(error);
     }
@@ -153,15 +252,16 @@ export class AuthController {
   async githubCallback(req: Request, res: Response, _next: NextFunction) {
     try {
       const profile = req.user as unknown as OAuthProfile;
-      const emailEntry = profile.emails?.[0];
-      const email = emailEntry?.value;
+      const verifiedEmail = profile.emails?.find((e) => e.verified === true);
+      const email = verifiedEmail?.value;
       if (!email) {
-        return res.redirect(
-          `${config.frontendUrl}/login?error=github_no_email&message=` +
-          encodeURIComponent('Vui lòng thiết lập email công khai trên GitHub trước khi đăng nhập.')
-        );
-      }
-      if (emailEntry.verified === false) {
+        const hasAnyEmail = (profile.emails?.length ?? 0) > 0;
+        if (!hasAnyEmail) {
+          return res.redirect(
+            `${config.frontendUrl}/login?error=github_no_email&message=` +
+            encodeURIComponent('Vui lòng thiết lập email công khai trên GitHub trước khi đăng nhập.')
+          );
+        }
         return res.redirect(`${config.frontendUrl}/login?error=email_not_verified`);
       }
       const name = profile.displayName || profile.username;

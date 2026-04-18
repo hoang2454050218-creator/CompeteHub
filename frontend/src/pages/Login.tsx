@@ -20,6 +20,8 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [providers, setProviders] = useState<{ google: boolean; github: boolean }>({ google: false, github: false });
+  const [mfaToken, setMfaToken] = useState<string | null>(null);
+  const [mfaCode, setMfaCode] = useState('');
   const { setAuth } = useAuthStore();
   const navigate = useNavigate();
   const location = useLocation();
@@ -45,13 +47,37 @@ export default function Login() {
     setLoading(true);
     try {
       const res = await api.post('/auth/login', { email, password });
-      const { user, accessToken } = res.data.data;
+      const data = res.data.data;
+      if (data?.mfaRequired) {
+        setMfaToken(data.mfaToken);
+        toast.success('Vui lòng nhập mã xác thực 2 yếu tố');
+        return;
+      }
+      const { user, accessToken } = data;
       setAuth(user, accessToken);
       scheduleTokenRefresh(accessToken);
       toast.success('Chào mừng bạn quay lại.');
       navigate(from, { replace: true });
     } catch (err: unknown) {
       toast.error(getApiErrorMessage(err, 'Đăng nhập thất bại.'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const submitMfa = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!mfaToken) return;
+    setLoading(true);
+    try {
+      const res = await api.post('/auth/login/mfa', { mfaToken, code: mfaCode });
+      const { user, accessToken } = res.data.data;
+      setAuth(user, accessToken);
+      scheduleTokenRefresh(accessToken);
+      toast.success('Đăng nhập thành công');
+      navigate(from, { replace: true });
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, 'Mã không đúng hoặc đã hết hạn'));
     } finally {
       setLoading(false);
     }
@@ -108,24 +134,48 @@ export default function Login() {
             </>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email</label>
-              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required className="input-field" placeholder="you@example.com" />
-            </div>
-
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Mật khẩu</label>
-                <Link to="/forgot-password" className="text-sm text-primary-600 hover:text-primary-700">Quên mật khẩu?</Link>
+          {mfaToken ? (
+            <form onSubmit={submitMfa} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Mã xác thực 2 yếu tố</label>
+                <input
+                  value={mfaCode}
+                  onChange={(e) => setMfaCode(e.target.value)}
+                  required
+                  className="input-field"
+                  placeholder="Nhập mã 6 chữ số hoặc mã dự phòng"
+                  inputMode="text"
+                  maxLength={16}
+                />
+                <p className="text-xs text-gray-500 mt-1">Mã từ ứng dụng Authenticator hoặc mã dự phòng đã lưu.</p>
               </div>
-              <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required className="input-field" placeholder="Nhập mật khẩu" />
-            </div>
+              <button type="submit" disabled={loading || !mfaCode} className="btn-primary w-full">
+                {loading ? 'Đang xác thực...' : 'Xác thực'}
+              </button>
+              <button type="button" onClick={() => { setMfaToken(null); setMfaCode(''); }} className="btn-secondary w-full">
+                Quay lại
+              </button>
+            </form>
+          ) : (
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email</label>
+                <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required className="input-field" placeholder="you@example.com" />
+              </div>
 
-            <button type="submit" disabled={loading} className="btn-primary w-full">
-              {loading ? 'Đang đăng nhập...' : 'Đăng nhập'}
-            </button>
-          </form>
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Mật khẩu</label>
+                  <Link to="/forgot-password" className="text-sm text-primary-600 hover:text-primary-700">Quên mật khẩu?</Link>
+                </div>
+                <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required className="input-field" placeholder="Nhập mật khẩu" />
+              </div>
+
+              <button type="submit" disabled={loading} className="btn-primary w-full">
+                {loading ? 'Đang đăng nhập...' : 'Đăng nhập'}
+              </button>
+            </form>
+          )}
         </div>
       </div>
     </div>

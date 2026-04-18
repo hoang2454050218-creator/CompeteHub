@@ -38,12 +38,15 @@ A Kaggle-style monorepo featuring deterministic scoring, real-time leaderboards,
 
 - **End-to-end TypeScript** monorepo: Express API, BullMQ scoring worker, React 18 SPA, Nginx reverse proxy.
 - **Deterministic public/private leaderboard** with seeded shuffling — same split for every submission in a competition, preventing overfit games.
-- **Six built-in evaluation metrics** out of the box: `ACCURACY`, `RMSE`, `F1_SCORE`, `AUC_ROC`, `LOG_LOSS`, `CUSTOM`.
-- **Real-time updates** via Socket.IO rooms backed by Redis pub/sub — leaderboard refreshes the moment a job is scored.
-- **Hardened auth**: JWT access (15m) + rotating refresh tokens (7d HttpOnly cookie) with reuse detection, brute-force lockout, OAuth (Google/GitHub) with state validation and single-use exchange codes.
-- **Production-grade pipeline**: Serializable transactions, magic-byte file validation, SHA-256 deduplication, BullMQ retries with DLQ, distributed cron locks.
-- **Operational safety**: stuck-submission recovery, auto-completion, daily DB backups (encrypted + S3-optional), graceful shutdown, health endpoints.
-- **Independently audited**: 198/198 backend tests, 49 dedicated security tests (XSS, IDOR, JWT, race conditions, fairness rules).
+- **Six built-in evaluation metrics** with both batch and single-pass streaming implementations: `ACCURACY`, `RMSE`, `F1_SCORE`, `AUC_ROC`, `LOG_LOSS`, `CUSTOM`.
+- **Real-time updates** via Socket.IO rooms backed by Redis adapter (multi-instance safe) — leaderboard, submissions, and discussions refresh the moment events fire.
+- **Hardened auth**: JWT access (15m) + rotating refresh tokens (7d HttpOnly cookie) with reuse detection, brute-force lockout, **email verification**, **TOTP 2FA with 8 backup codes**, OAuth (Google + strict-verified GitHub) with state validation and single-use exchange codes.
+- **Defense-in-depth file pipeline**: magic-byte validation → ClamAV antivirus scan → SHA-256 dedupe → streaming MinIO upload, all inside Serializable transactions with BullMQ retries + DLQ.
+- **Compliance-ready**: GDPR data export + account anonymize endpoints, AuditLog table for every admin and security-sensitive action, ToS / Privacy / Cookie consent UI.
+- **Production observability**: Prometheus `/metrics` for backend + worker (HTTP latency, queue depth, scoring duration, websocket connections, failed-login spikes), Grafana dashboards, Alertmanager rules, OpenTelemetry OTLP tracing.
+- **Domain features**: Badges + UserBadge with auto-evaluator on submission/vote/MFA/email events, Follow/follower system with denormalized counters, real-time discussion via Redis pub/sub, Settings page with Profile/Security/Notifications/Privacy tabs.
+- **Operational safety**: stuck-submission recovery, auto-completion, daily DB backups (encrypted + S3-optional), graceful shutdown, health endpoints, distributed cron locks.
+- **Independently audited**: 200+ backend tests + 45 worker tests + 40 frontend tests, plus 49 dedicated security tests (XSS, IDOR, JWT, race conditions, fairness rules) and Playwright smoke E2E in CI.
 
 ## Architecture
 
@@ -81,12 +84,15 @@ A Kaggle-style monorepo featuring deterministic scoring, real-time leaderboards,
 | Layer | Technologies |
 |-------|--------------|
 | **Frontend** | React 18, TypeScript, Vite 6, Tailwind CSS 3, Zustand, TanStack Query 5, Axios, Socket.IO client, Recharts, Sentry |
-| **Backend** | Node 20, Express 4, Prisma 6, Zod, Passport, jsonwebtoken, bcryptjs, Helmet, sanitize-html, Pino, Sentry, Swagger |
-| **Worker** | BullMQ 5, csv-parse, ioredis, MinIO SDK, custom deterministic LCG splitter |
-| **Datastores** | PostgreSQL 16 (with `pg_trgm` for search), Redis 7, MinIO (S3-compatible) |
-| **Infrastructure** | Docker Compose, multi-stage builds, non-root containers, Nginx (TLS 1.2+1.3, rate-limit zones) |
-| **Testing** | Jest, Vitest, Supertest, Testing Library, MSW |
-| **CI/CD** | GitHub Actions (4 parallel jobs: security audit, backend, frontend, worker, docker build) |
+| **Backend** | Node 20, Express 4, Prisma 6, Zod, Passport, jsonwebtoken, bcryptjs, Helmet, sanitize-html, Pino, Sentry, Swagger, otplib (TOTP), clamscan (ClamAV) |
+| **Worker** | BullMQ 5, csv-parse, ioredis, MinIO SDK, custom deterministic LCG splitter, streaming single-pass scorers |
+| **Datastores** | PostgreSQL 16 (with `pg_trgm` for search), Redis 7 (cache + pub/sub + Socket.IO adapter), MinIO (S3-compatible) |
+| **Observability** | Prometheus + Grafana + Alertmanager (`monitoring/`), OpenTelemetry SDK with OTLP exporter, Sentry, Pino JSON logs |
+| **Security** | ClamAV daemon, OAuth state via Redis, JWT HS256 with `iss`/`aud`, refresh-token rotation w/ reuse detection, audit_log table |
+| **Infrastructure** | Docker Compose, multi-stage builds, non-root containers, Nginx (TLS 1.2+1.3, rate-limit zones, ip_hash for sockets) |
+| **Testing** | Jest, Vitest, Supertest, Testing Library, MSW, Playwright (E2E) |
+| **CI/CD** | GitHub Actions: security audit · backend · frontend · worker · docker build · Playwright smoke E2E |
+| **DevEx** | Dependabot (npm + docker + actions), CODEOWNERS, PR + issue templates, ESLint + security plugin, Prettier |
 
 ## Quick Start (Development)
 

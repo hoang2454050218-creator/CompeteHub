@@ -63,3 +63,18 @@ export function leaveCompetition(competitionId: string) {
 export function joinLeaderboard(competitionId: string) {
   socket?.emit('join:leaderboard', competitionId);
 }
+
+type DiscussionEvent = { competitionId: string; discussionId: string; replyId?: string; kind: 'topic' | 'reply' };
+type LeaderboardEvent = { competitionId: string; userId: string; publicScore: number };
+
+export function onDiscussionUpdate(cb: (payload: DiscussionEvent) => void): () => void {
+  if (!socket) return () => undefined;
+  socket.on('discussion:new', cb);
+  return () => { socket?.off('discussion:new', cb); };
+}
+
+export function onLeaderboardUpdate(cb: (payload: LeaderboardEvent) => void): () => void {
+  if (!socket) return () => undefined;
+  socket.on('leaderboard:updated', cb);
+  return () => { socket?.off('leaderboard:updated', cb); };
+}

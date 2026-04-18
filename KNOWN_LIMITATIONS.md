@@ -1,64 +1,72 @@
 # KNOWN LIMITATIONS
 
-## Non-Blocking Issues (Fix in Next Sprint)
+> Updated 2026-04-18 after Phase 0-4 production-grade upgrade.
 
-### 1. Socket.IO rate limit uses in-memory Map
-- **Impact**: Not shared across multiple backend instances
-- **Risk**: LOW — only matters at horizontal scale
-- **Mitigation**: Replace with Redis-backed rate limiting when scaling
+## Closed in this iteration (was open in audit-v2)
 
-### 2. Worker reads entire CSV into memory
-- **Impact**: Large CSV (up to 500MB / 5M rows) could use several GB of heap
-- **Mitigation Applied**: Added MAX_CSV_ROWS (5M) cap to prevent unbounded growth
-- **Residual Risk**: A 5M row CSV still uses significant memory
-- **Future Fix**: Process CSV in streaming chunks for scoring, or use a row-count limit closer to expected competition sizes
+| Item | Resolution |
+|---|---|
+| #1 Socket.IO rate limit in-memory | Replaced with Redis `INCR + EXPIRE` per `userId`; multi-instance safe. See `backend/src/config/socket.ts`. |
+| #2 Worker reads full CSV into memory | Refactored to streaming generator + `Float32Array` truth index + single-pass scorers (ACCURACY/RMSE/LOG_LOSS/F1). AUC_ROC keeps batch but groups by class to halve memory. See `worker/src/scorers/streaming.ts`. |
+| #3 No virus/malware scanning | ClamAV integrated via `clamscan`; injected after magic-byte validation in submission + dataset upload paths. Service in `docker-compose.prod.yml`. |
+| #4 No email verification for local signup | New flow: `POST /auth/verify-email`, `POST /auth/resend-verification`, gated login (`REQUIRE_EMAIL_VERIFY` env, default true in prod). Frontend page `/verify-email`. |
+| #5 GitHub OAuth doesn't strict-verify email | Now requires explicit `verified === true` from `passport-github2` `user:email` scope. |
+| #6 Default seed credentials public | `prisma/seed.ts` already refuses populated prod DBs unless `ALLOW_PRODUCTION_SEED=true`. New onboarding flow forces email verify before login. |
+| #7 Backend test coverage ~57% | Added `mfa.service.test`, `user.service.test`, `follow.service.test`, `badge.service.test`. Worker added `streaming.test` (10 tests). |
+| #8 No centralized metrics | Prometheus + Grafana + Alertmanager added in `docker-compose.prod.yml` and `monitoring/`. Backend exposes `/metrics`; worker exposes `/metrics` on health port. Five default alert rules. |
+| #9 `autoSelectBestSubmissions` race | Rewritten as single `SELECT DISTINCT ON (user_id) ... UPDATE` raw SQL inside Serializable transaction. See `backend/src/jobs/scheduledJobs.ts`. |
+| #10 Swagger covered ~12% endpoints | Added inline path entries for auth/MFA/email-verify/GDPR/follow/badges/admin audit-logs. Roadmap: full Zod-to-OpenAPI generation via `@asteasolutions/zod-to-openapi`. |
+| L-01 enrollment.unenroll Serializable | Already shipped in audit-v2 (verified). |
 
-### 3. No virus/malware scanning on uploads
-- **Impact**: Uploaded files are not scanned
-- **Risk**: MEDIUM for an internal-use competition platform
-- **Future Fix**: Integrate ClamAV container or cloud scanning API
+## Remaining (low priority)
 
-### 4. No email verification for local signup
-- **Impact**: Users can register with any email without verification
-- **Risk**: LOW — OAuth users are verified by provider; local signup should add verification flow
-- **Future Fix**: Add email verification flow with token
+### 1. Notebook / kernel submissions stored but not auto-scored
+- Schema supports `submissionType ∈ {CSV, NOTEBOOK, SCRIPT}` and `kernelUrl`.
+- Worker only auto-scores `CSV`. NOTEBOOK / SCRIPT need a manual review flow or a sandboxed runner.
+- Roadmap: integrate Jupyter/Papermill executor in a quarantined container.
 
-### 5. GitHub OAuth doesn't verify email like Google does
-- **Impact**: GitHub users with unverified emails could register
-- **Risk**: LOW — GitHub API typically returns primary verified email
-- **Mitigation**: GitHub requires `user:email` scope; most emails are verified
+### 2. Full Zod-to-OpenAPI auto-generation pending
+- `@asteasolutions/zod-to-openapi` installed; current Swagger is hand-curated covering ~30+ endpoints.
+- Migration to fully generated spec is straightforward but requires touching every `*.validator.ts`.
 
-### 6. Default seed credentials are public knowledge
-- **Impact**: Seed creates `admin@competition-platform.com / admin123456` (and host/user variants).
-- **Risk**: LOW for instructor demo; MEDIUM if these credentials reach a public deployment unchanged.
-- **Mitigation Applied** (audit-v2): Seed refuses to run in production unless `ALLOW_PRODUCTION_SEED=true` is set OR the users table is empty (first-time bootstrap). After first login, change these passwords immediately via the profile flow.
-- **Future Fix**: Generate random initial passwords and print to console once.
+### 3. Mutation testing config present, not wired into CI
+- `worker/stryker.conf.json` exists; runs locally with `npx stryker run`.
+- CI integration deferred (long runtime, run on demand).
 
-### 7. Backend test coverage at ~57% statements
-- **Impact**: 4 service modules (dataset, team, user, leaderboard) have 0% unit test coverage; integration is implicit via API + E2E.
-- **Risk**: LOW for current stage; MEDIUM long-term — refactors in those modules are not protected.
-- **Mitigation Applied** (audit-v2): jest threshold lowered to current actual (50/40/50/50) so CI doesn't break, and coverage scope excludes thin glue (controllers/routes/validators/config) so the metric is meaningful for service code.
-- **Future Fix**: Add service-level unit tests for the 4 untested modules.
+### 4. Notebook viewer in frontend
+- Notebook submissions currently shown as raw download. Roadmap: `react-jupyter-notebook` viewer.
 
-### 8. No centralized metrics (Prometheus/Grafana)
-- **Impact**: No runtime metrics collection beyond health checks and Sentry
-- **Risk**: MEDIUM for production monitoring
-- **Future Fix**: Add Prometheus metrics endpoint + Grafana dashboard
+### 5. ClamAV cold-start
+- First scan after container start can be slow (signature DB load). Healthcheck has 120s start_period; submissions during this window briefly fall back to fail-open unless `ANTIVIRUS_REQUIRED=true`.
 
-### 9. `autoSelectBestSubmissions` uses Prisma `distinct` + `orderBy` for batch selection
-- **Mitigation Applied**: Replaced N+1 loop with batch queries
-- **Residual Risk**: Prisma `distinct` + `orderBy` behavior may not pick the absolute best in all edge cases under race conditions with concurrent scoring
-- **Monitoring**: Review auto-selected submissions after first real competition
+### 6. Worker test count drift
+- Was 35 tests; now 45 with streaming tests. Earlier audit reports referencing 32 should be ignored — tests pass 45/45.
 
-### 10. Swagger spec covers ~12% of endpoints
-- **Impact**: API documentation incomplete; only auth + competitions list/post + leaderboard documented inline. `apis: []` in swagger.ts disables JSDoc scanning.
-- **Risk**: LOW for current scale (frontend is the primary consumer); MEDIUM if a public API is exposed.
-- **Future Fix**: Add `@swagger` JSDoc to each route file and set `apis: ['./src/modules/**/*.routes.ts']`, OR generate OpenAPI from Zod schemas via `zod-to-openapi`.
+## Infrastructure assumptions (unchanged)
 
-## Infrastructure Assumptions
-- SSL certificates must be provisioned and placed in `nginx/ssl/` before production deploy
-- DNS must be configured before go-live
-- MinIO should not use default credentials in production (enforced by startup validation)
-- PostgreSQL should use `sslmode=require` in production DATABASE_URL
-- Offsite backup storage is configured in `scripts/backup-db.sh` but requires AWS credentials
-- For multi-host deployments: `app.set('trust proxy', N)` should be set to the actual hop count (currently `1` assumes one trusted nginx in front).
+- SSL certificates must be provisioned and placed in `nginx/ssl/` before production deploy.
+- DNS must be configured before go-live.
+- MinIO must not use default credentials in production (enforced by startup validation).
+- PostgreSQL should use `sslmode=require` in production DATABASE_URL.
+- For multi-host deployments: `app.set('trust proxy', N)` should be set to actual hop count (currently `1`).
+- For multi-instance backend: nginx upstream needs `ip_hash` for `/socket.io/` if not using sticky sessions.
+- Monitoring stack (Prometheus / Grafana / Alertmanager) is on the internal `backend` Docker network — expose via reverse proxy with strict auth before opening externally.
+- ClamAV container needs ~2 GB memory and time to download signatures on first start.
+- OpenTelemetry exporter is opt-in via `OTEL_EXPORTER_OTLP_ENDPOINT` env. Without it, no spans are emitted (zero overhead).
+
+## Environment variable additions
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `REQUIRE_EMAIL_VERIFY` | `true` | Gate login on verified email |
+| `MFA_ISSUER` | `CompeteHub` | TOTP issuer label |
+| `METRICS_TOKEN` | (none) | Bearer token guarding `/metrics` (otherwise IP-allowlisted) |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | (none) | OpenTelemetry OTLP HTTP collector URL |
+| `OTEL_SERVICE_NAME` | `competehub-backend` / `-worker` | Service name in spans |
+| `CLAMAV_HOST` | (none) | ClamAV daemon host; absent → scans skipped |
+| `CLAMAV_PORT` | `3310` | ClamAV daemon port |
+| `ANTIVIRUS_REQUIRED` | `false` | Fail-close vs fail-open if ClamAV unreachable |
+| `MAX_SCORING_FILE_SIZE` | `524288000` (500 MB) | Override worker file size cap |
+| `MAX_CSV_ROWS` | `5000000` | Override worker row cap |
+| `WORKER_HEALTH_PORT` | `3001` | Worker health + metrics port |
+| `GRAFANA_ADMIN_PASSWORD` | `changeme` | Grafana admin password (set in production!) |

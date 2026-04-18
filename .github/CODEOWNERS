@@ -1,0 +1,22 @@
+# Default owners for everything
+*                                @project-owner
+
+# Security-sensitive paths require extra review
+/backend/src/modules/auth/**     @project-owner @security-reviewer
+/backend/src/middleware/auth.ts  @project-owner @security-reviewer
+/backend/src/services/antivirus.service.ts  @project-owner @security-reviewer
+/backend/src/services/auditLog.service.ts   @project-owner @security-reviewer
+
+# Worker (scoring correctness critical)
+/worker/**                       @project-owner @worker-reviewer
+/worker/src/scorers/**           @project-owner @worker-reviewer
+
+# Database / migrations
+/backend/prisma/**               @project-owner @db-reviewer
+/worker/prisma/**                @project-owner @db-reviewer
+
+# Infrastructure
+/nginx/**                        @project-owner @infra-reviewer
+/docker-compose*.yml             @project-owner @infra-reviewer
+/monitoring/**                   @project-owner @infra-reviewer
+/.github/**                      @project-owner @infra-reviewer
